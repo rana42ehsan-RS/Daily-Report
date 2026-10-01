@@ -33,6 +33,18 @@ python daily_aqi_report.py --csv data --shp shp\AQMS_Locations.shp --districts-s
 
 You can also edit the paths in `run_daily_report.bat` and double-click it.
 
+## 3a. Upload app
+
+Run the upload app locally with:
+
+```bat
+streamlit run app.py
+```
+
+Upload the station-level dashboard CSV. The app uses the bundled AQMS shapefile
+and generates the HTML, PDF, PNG map, and Excel summary. Download everything as
+one ZIP or download individual files.
+
 Useful options:
 
 | Option | Meaning |
