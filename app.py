@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 import shutil
 import sys
 import tempfile
@@ -32,6 +33,12 @@ def run_report(uploaded_csv, focus: str, basemap: str, keep_zero: bool) -> tuple
         ]
         if keep_zero:
             args.append("--keep-zero-aqi")
+
+        if "CHROMIUM_PATH" not in os.environ:
+            for candidate in ("/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome"):
+                if Path(candidate).exists():
+                    os.environ["CHROMIUM_PATH"] = candidate
+                    break
 
         log = io.StringIO()
         try:
