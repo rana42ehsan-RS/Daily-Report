@@ -1,6 +1,6 @@
 # Daily AQI Report of Punjab — generator
 
-Makes the two-page **Daily AQI Report** (Punjab district ranking in Urdu, plus the zoomed Lahore AQMS map with its station table) straight from the dashboard CSV and your AQMS shapefile.
+Generates the **Daily AQI Report** from the station-level dashboard CSV: a Punjab district ranking in Urdu, a Punjab district AQI map, and a zoomed AQMS map with its station table.
 
 ## 1. One-time setup (Windows, VS Code terminal)
 
@@ -15,20 +15,20 @@ Playwright's Chromium turns the HTML page into the PDF. It lays out Urdu Nastali
 
 ```
 daily_aqi_report/
-  daily_aqi_report.py      <- the script (all settings at the top)
+  daily_aqi_report_Punjab.py <- the script (all settings at the top)
   run_daily_report.bat     <- double-click to run
   requirements.txt
   assets/                  <- logos, helpline banner, Pakistan–India border line
   fonts/                   <- Noto Nastaliq Urdu + Noto Serif/Sans (bundled, OFL)
   data/                    <- put graphs_periodic_YYYY-MM-DD.csv here (newest is used)
-  shp/                     <- AQMS_Locations.shp (+ optional Punjab_Districts.shp)
+  shp/                     <- 56AQMS.shp and District.shp (Punjab district boundaries)
   output/                  <- results
 ```
 
 ## 3. Run
 
 ```bat
-python daily_aqi_report.py --csv data --shp shp\AQMS_Locations.shp --districts-shp shp\Punjab_Districts.shp
+python daily_aqi_report_Punjab.py --csv data --shp shp\56AQMS.shp --districts-shp shp\District.shp
 ```
 
 You can also edit the paths in `run_daily_report.bat` and double-click it.
@@ -52,18 +52,19 @@ Useful options:
 | `--csv FILE or FOLDER` | Station-level export. If you give a folder, the newest CSV in it is used. |
 | `--shp FILE` | AQMS point shapefile, in any CRS. The name field is detected automatically. |
 | `--shp-name-field NAME` | Sets the station-name attribute yourself if the detected one is wrong. |
-| `--districts-shp FILE` | Adds the highlighted focus-district outline, a Punjab locator inset, and an offline background. |
+| `--districts-shp FILE` | Punjab district boundaries used for the district AQI map and the focus-district map. |
 | `--basemap osm/voyager/esri-street/positron/satellite/none` | Street-map provider. The default is `osm`; you can also pass your own `https://.../{z}/{x}/{y}.png`. |
 | `--basemap-file FILE` | Your own street map: a GeoTIFF, or a PNG/JPG with a `.pgw`/`.jgw` world file. |
 | `--refresh-basemap` / `--test-basemap` | Download a fresh copy of the street map / test which providers work on this network. |
-| `--focus "Lahore"` | District shown on the zoomed map (page 2). |
+| `--focus "Lahore"` | District shown on the zoomed map (page 3). |
 | `--report-date 2026-09-30` | Date printed on the report. The default is the data date + 1. |
 | `--min-hours 18` | Minimum valid hours for a station to be reported. |
 | `--keep-zero-aqi` | Counts "AQI 0 with no pollutant" hours the way the dashboard Average row does. |
 
 ## 4. Outputs (in `output/`)
 
-- `DAILY_AQI_REPORT_dd.mm.yyyy.pdf`: page 1 (Urdu ranking) and page 2 (Lahore map + table)
+- `DAILY_AQI_REPORT_dd.mm.yyyy.pdf`: page 1 (Urdu ranking), page 2 (Punjab district AQI map), and page 3 (focus-district AQMS map)
+- `Punjab_District_AQI_Map_dd.mm.yyyy.png`: Punjab district AQI map
 - `AQMS_Map_Lahore_dd.mm.yyyy.png`: the zoomed map at 300 dpi, for WhatsApp or slides
 - `AQI_Summary_dd.mm.yyyy.xlsx`: sheets Districts, Stations, QA_Flags, Shapefile_Match, Hourly
 - `DAILY_AQI_REPORT_dd.mm.yyyy.html`: the same report as a web page
@@ -98,7 +99,7 @@ The map tries these sources in order and uses the first one that works:
 To see which providers work on your network, run:
 
 ```bat
-python daily_aqi_report.py --test-basemap
+python daily_aqi_report_Punjab.py --test-basemap
 ```
 
 Each provider is reported as OK or FAIL, with the reason and a hint. For example, an SSL error means you need `pip install truststore`, and HTTP 403 means you should try another provider.

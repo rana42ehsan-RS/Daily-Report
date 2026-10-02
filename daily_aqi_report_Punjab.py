@@ -30,7 +30,7 @@ Street map (basemap) — tried in this order, first one that works is used:
   2. The copy saved from an earlier download (basemap/cache/) — works offline.
   3. Download: --basemap (default osm), then BASEMAP_FALLBACKS.
   4. A clean offline style.
-  Check your network with:  python daily_aqi_report.py --test-basemap
+  Check your network with:  python daily_aqi_report_Punjab.py --test-basemap
 
 How the numbers are calculated (reproduces the existing manual report):
   * Station 24-h AQI     = mean of the valid hourly AQI values for the day.
@@ -55,7 +55,7 @@ How the numbers are calculated (reproduces the existing manual report):
 Quick start (Windows / VS Code terminal):
   pip install -r requirements.txt
   python -m playwright install chromium
-  python daily_aqi_report.py --csv graphs_periodic_2026-09-30.csv --shp AQMS_Locations.shp
+  python daily_aqi_report_Punjab.py --csv graphs_periodic_2026-09-30.csv --shp 56AQMS.shp
 
 Everything you may want to change (colours, Urdu wording, station names,
 thresholds, which district is mapped) is in the CONFIGURATION section below.
