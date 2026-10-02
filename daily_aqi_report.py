@@ -8,7 +8,8 @@
 
 What it produces (all in the output folder):
   1. DAILY_AQI_REPORT_<dd.mm.yyyy>.pdf   Page 1  Punjab district ranking (Urdu)
-                                          Page 2  Lahore AQMS map + station table
+                                          Page 2  Punjab district AQI map (filled by AQI band)
+                                          Page 3  Lahore AQMS map + station table
   2. AQMS_Map_<District>_<dd.mm.yyyy>.png  High-resolution zoomed AQMS map (300 dpi)
   3. AQI_Summary_<dd.mm.yyyy>.xlsx        Districts, Stations, Hourly data, QA flags
   4. DAILY_AQI_REPORT_<dd.mm.yyyy>.html   The same report as a web page
@@ -21,6 +22,7 @@ Inputs:
           with --shp-name-field.
   --districts-shp  (optional) Punjab district boundaries. Used to highlight the
           focus district on the map and as the map background when offline.
+          Page 2 (Punjab map) also finds it automatically: any *dist*.shp in the shp folder.
 
 Street map (basemap) — tried in this order, first one that works is used:
   1. Your own file: basemap/<Focus>.tif, or basemap/<Focus>.png + .pgw world
@@ -209,6 +211,57 @@ PUBLIC_MESSAGES = {
          ("doctor", "طبیعت خراب ہونے پر فوراً ڈاکٹر سے رجوع کریں۔")]),
 }
 
+# Health advisory (page 1 message box), one per AQI band: (band name used in the title, [(section heading, [(icon, Urdu text), ...]), ...])
+# Bands 0-4 follow the advisory sheets supplied by EMC; 301-400 and 401+ reuse the page-1 PUBLIC_MESSAGES text.
+ADVISORY_TEXT = {
+    0: ("بہتر", [
+        ("عام عوام:", [("outdoor", "ہوا کا معیار اچھا ہے۔"),
+                       ("run", "تمام بیرونی سرگرمیوں کے لیے مثالی حالات ہیں۔"),
+                       ("outdoor", "کوئی پابندی نہیں ہے۔")]),
+        ("حساس گروپس:", [("outdoor", "ہوا کے اچھے معیار کا فائدہ اٹھائیں۔")])]),
+    1: ("اطمینان بخش", [
+        ("عام عوام:", [("outdoor", "ہوا کا معیار اچھا ہے۔"),
+                       ("doctor", "صحت مند افراد کے لیے کسی خاص احتیاط کی ضرورت نہیں ہے۔")]),
+        ("حساس گروہ:", [("outdoor", "منصوبے کے مطابق بیرونی سرگرمیاں جاری رکھیں۔")])]),
+    2: ("معتدل", [
+        ("عوامُ النَّاسِ:", [("aqi", "باہر کی سرگرمیوں کی منصوبہ بندی کے لیے AQI کو مدنظر رکھیں۔")]),
+        ("حساس گروہ:", [("heart", "صحت کی باقاعدگی سے نگرانی کریں (آکسیجن، بی پی، وغیرہ)۔"),
+                        ("food", "قوتِ مدافعت بڑھانے کے لیے صحت بخش غذا کھائیں۔"),
+                        ("nosmoke", "تمباکو نوشی سے گریز کریں۔"),
+                        ("run", "باہر کی سرگرمیوں کو محدود کریں۔"),
+                        ("kit", "ہنگامی امداد کے آلات (جیسے نیبولائزر) تیار رکھیں۔"),
+                        ("doctor", "اگر سانس کے مسائل پیدا ہوں تو ڈاکٹر سے مشورہ کریں۔")])]),
+    3: ("نازک گروہوں کے لئے غیر صحت بخش", [
+        ("عام عوام کے لئے:", [("run", "بیرون خانہ طویل یا سخت مشقت کو کم کریں۔")]),
+        ("نازک گروہ:", [("aqi", "باہر جانے سے پہلے AQI کی جانچ کریں۔"),
+                        ("mask", "باہر جاتے ہوئے ماسک پہنیں۔"),
+                        ("child", "بچوں کو گھر کے اندر رکھیں۔"),
+                        ("home", "ناقص AQI والے علاقوں میں سفر سے گریز کریں۔"),
+                        ("elder", "بزرگوں کو گھر کے اندر رہنا چاہئے۔"),
+                        ("window", "دروازے/کھڑکیاں بند رکھیں۔"),
+                        ("run", "بیرون خانہ سخت سرگرمی سے گریز کریں۔"),
+                        ("doctor", "پھیپھڑوں اور دل کی پرانی بیماری کے مریض ماسک کے استعمال کے لئے ڈاکٹر سے مشورہ کریں۔")])]),
+    4: ("مضر صحت", [
+        ("عام عوام کے لئے:", [("aqi", "باہر جانے سے پہلے AQI کی جانچ کریں۔"),
+                              ("run", "بیرون خانہ طویل یا سخت مشقت کو کم کریں۔")]),
+        ("نازک گروہ (بشمول بچے اور بزرگ):", [("home", "زیادہ سے زیادہ وقت گھر پر گزاریں۔"),
+                                              ("mask", "N95 ماسک کا استعمال کریں۔"),
+                                              ("window", "دروازے اور کھڑکیاں بند رکھیں۔"),
+                                              ("child", "بچوں کو گھر کے اندر رکھیں۔"),
+                                              ("doctor", "CVD اور COPD کے مریض اپنے معالج کے مشورے سے ماسک کا انتخاب کریں۔")])]),
+}
+
+
+def advisory_sections(bi):
+    """(title, sections) for the page-1 message box, where sections = [(heading, [(icon, text), ...]), ...]."""
+    if bi is None:
+        return None, []
+    if bi in ADVISORY_TEXT:
+        return ADVISORY_TEXT[bi]
+    pub, sen = PUBLIC_MESSAGES[bi]
+    return BANDS[bi][3], [(UR["public"], pub), (UR["sensitive"], sen)]
+
+
 URDU_MONTHS = ["جنوری", "فروری", "مارچ", "اپریل", "مئی", "جون", "جولائی", "اگست",
                "ستمبر", "اکتوبر", "نومبر", "دسمبر"]
 UR = {
@@ -318,6 +371,21 @@ class Station:
     y: float | None = None
 
 
+def registry_lookup(name: str):
+    """STATION_REGISTRY entry for a CSV station name: exact match first, then the same name ignoring
+    case / punctuation / spacing, then the registry short label found as whole words in the name
+    (so 'Lathepur', 'LATHEPUR LHR Mobile-2' or 'Lathepur (Mobile 2)' still resolve to Lathepur)."""
+    if name in STATION_REGISTRY:
+        return STATION_REGISTRY[name]
+    n = norm(name)
+    for key, val in STATION_REGISTRY.items():
+        if norm(key) == n:
+            return val
+    padded = f" {n} "
+    hits = [val for key, val in STATION_REGISTRY.items() if f" {norm(val[0])} " in padded]
+    return max(hits, key=lambda v: len(v[0])) if hits else None
+
+
 def read_dashboard_csv(path: Path, data_date: dt.date | None, keep_zero: bool):
     raw = pd.read_csv(path, encoding="utf-8-sig", dtype=str)
     tcol = raw.columns[0]
@@ -344,8 +412,9 @@ def read_dashboard_csv(path: Path, data_date: dt.date | None, keep_zero: bool):
             valid &= ~((aqi == 0) & (dom == ""))
         hours = pd.DataFrame({"time": raw["__t"].values, "aqi": aqi.values,
                               "dom": dom.values, "valid": valid.values})
-        if name in STATION_REGISTRY:
-            label, district, role = STATION_REGISTRY[name]
+        reg = registry_lookup(name)
+        if reg:
+            label, district, role = reg
         else:
             label, district, role = short_label(name), infer_district(name), "city"
         stations.append(Station(name, label, district, role, hours))
@@ -479,7 +548,13 @@ def _match_score(a: str, b: str) -> float:
     seq = difflib.SequenceMatcher(None, na, nb).ratio()
     jac = len(ta & tb) / len(ta | tb) if (ta | tb) else 0
     contain = 1.0 if (ta and tb and (ta <= tb or tb <= ta)) else 0
-    return max(seq, jac, 0.9 * contain)
+    # same name written with different spacing ('Lathe Pur' vs 'Lathepur', 'Wahga Border' vs 'Wagha Border')
+    ca = "".join(w for w in na.split() if w not in drop and not w.isdigit())
+    cb = "".join(w for w in nb.split() if w not in drop and not w.isdigit())
+    compact = 0.97 * difflib.SequenceMatcher(None, ca, cb).ratio() if (ca and cb and ca != cb and (" " in na or " " in nb)) else 0
+    if ca and ca == cb:
+        compact = 0.97
+    return max(seq, jac, 0.9 * contain, compact)
 
 
 def load_station_locations(shp: Path, stations, name_field: str | None, aliases: dict, log):
@@ -837,7 +912,7 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
     if not pts:
         log(f"  ! No located stations for {focus}; map skipped")
         return None
-    extent_pts = [s for s in pts if s.role != "transboundary"] or pts
+    extent_pts = pts   # city + transboundary stations all stay in view
     xs = np.array([s.x for s in extent_pts]); ys = np.array([s.y for s in extent_pts])
 
     W, H = size_mm[0] / 25.4, size_mm[1] / 25.4
@@ -845,10 +920,10 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_axis_off()
 
-    # extent: stations + 22% padding, matched to the figure aspect ratio
+    # extent: tight fit on all stations incl. transboundary (+2% padding), matched to the figure aspect ratio
     cx, cy = (xs.min() + xs.max()) / 2, (ys.min() + ys.max()) / 2
-    w = (xs.max() - xs.min()) * 1.44 + 4000
-    h = (ys.max() - ys.min()) * 1.44 + 4000
+    w = (xs.max() - xs.min()) * 1.04 + 800
+    h = (ys.max() - ys.min()) * 1.04 + 800
     if w / h > W / H:
         h = w * H / W
     else:
@@ -1122,6 +1197,305 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
 
 
 # =============================================================================
+# 4b. PUNJAB DISTRICT AQI MAP (page 3)
+# =============================================================================
+
+PUNJAB_MAP_SIZE_MM = (194, 220)     # must match .mapimg3 in the CSS
+PUNJAB_CRS = "+proj=aea +lat_1=29 +lat_2=33 +lat_0=31 +lon_0=72 +datum=WGS84 +units=m +no_defs"
+PUNJAB_LABEL_FONTS = [7.6, 6.8, 6.0, 5.3, 4.6]   # tried largest-first so each district name fits inside its polygon
+
+
+def find_districts_shp(shp_dir: Path) -> Path | None:
+    """Pick the Punjab district boundary shapefile from the shp folder (file name containing 'dist')."""
+    if not shp_dir.exists():
+        return None
+    for p in sorted(shp_dir.glob("*.shp")):
+        if re.search(r"dist", p.stem, re.I) and "aqms" not in p.stem.lower():
+            return p
+    return None
+
+
+def _canon_loose(name: str) -> str | None:
+    """canonical_district() that also tolerates spacing differences (e.g. 'Bahawal Nagar')."""
+    c = canonical_district(name)
+    if c:
+        return c
+    key = norm(name).replace(" ", "")
+    for d in DISTRICT_URDU:
+        if norm(d).replace(" ", "") == key:
+            return d
+    for a, d in DISTRICT_ALIASES.items():
+        if norm(a).replace(" ", "") == key:
+            return d
+    return None
+
+
+def render_punjab_map(districts, districts_shp: Path | None, out_png: Path, data_date: dt.date, log,
+                      size_mm=PUNJAB_MAP_SIZE_MM):
+    """Punjab map, every district filled with its AQI band colour and labelled with name + AQI.
+    Labels are fitted inside each district (font shrinks to fit); districts too small for a
+    label get a callout placed in free space with a leader line."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import FancyBboxPatch, Rectangle
+    import matplotlib.patheffects as pe
+    from matplotlib.transforms import Bbox
+    import geopandas as gpd
+    from shapely.geometry import box, Point
+
+    if not districts_shp or not Path(districts_shp).exists():
+        log("  ! Punjab district shapefile not found; Punjab map skipped (use --districts-shp or put it in the shp folder)")
+        return None
+    plt.rcParams["font.family"] = _pick_font()
+
+    dg = gpd.read_file(districts_shp)
+    if dg.crs is None:
+        dg = dg.set_crs(4326)
+    dg = dg.to_crs(PUNJAB_CRS)
+    dg = dg[dg.geometry.notna() & ~dg.geometry.is_empty].copy()
+    str_cols = [c for c in dg.columns if c != "geometry" and pd.api.types.is_string_dtype(dg[c])]
+    if not str_cols:
+        log("  ! No text field with district names in the district shapefile; Punjab map skipped")
+        return None
+    name_col = max(str_cols, key=lambda c: dg[c].astype(str).map(_canon_loose).notna().sum())
+    if dg[name_col].astype(str).map(_canon_loose).notna().sum() == 0:
+        log(f"  ! Could not match any district names in field '{name_col}'; Punjab map skipped")
+        return None
+    dg["_name"] = [(_canon_loose(n) or str(n).strip()) for n in dg[name_col].astype(str)]
+    dg = dg.dissolve(by="_name", as_index=False)          # one polygon per district (also works for tehsil-level files)
+    vals = {d.name: d.value for d in districts}
+    dg["_val"] = dg["_name"].map(vals)
+    dg["_fill"] = [band_fill(v) if v == v and v is not None else NO_DATA_FILL for v in dg["_val"]]
+    in_shp = set(dg["_name"])
+    missing = [d.name for d in districts if d.value is not None and d.name not in in_shp]
+    if missing:
+        log(f"  ! districts with AQI but no polygon in the shapefile (not drawn): {', '.join(missing)}")
+    log(f"  Punjab map: {int(dg['_val'].notna().sum())} of {len(dg)} districts have AQI data")
+
+    W, H = size_mm[0] / 25.4, size_mm[1] / 25.4
+    fig = plt.figure(figsize=(W, H), dpi=300)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_axis_off()
+    union = dg.union_all() if hasattr(dg, "union_all") else dg.unary_union
+
+    # extent: whole Punjab + 2.5% padding, matched to the frame aspect ratio
+    bx0, by0, bx1, by1 = dg.total_bounds
+    cx, cy = (bx0 + bx1) / 2, (by0 + by1) / 2
+    w, h = (bx1 - bx0) * 1.05, (by1 - by0) * 1.05
+    if w / h > W / H:
+        h = w * H / W
+    else:
+        w = h * W / H
+    x0, x1, y0, y1 = cx - w / 2, cx + w / 2, cy - h / 2, cy + h / 2
+    ax.set_xlim(x0, x1); ax.set_ylim(y0, y1)
+    ax.add_patch(Rectangle((x0, y0), w, h, facecolor="#F3F5F7", lw=0, zorder=0))
+
+    dg.plot(ax=ax, color=dg["_fill"].tolist(), edgecolor="#3B4650", linewidth=0.55, zorder=2)
+    _plot_lines(ax, [union], color="#1F2D3A", lw=1.5, zorder=4)
+
+    if BORDER_FILE.exists():                                  # international border, as on the Lahore map
+        bd = gpd.read_file(BORDER_FILE).to_crs(PUNJAB_CRS)
+        bd = bd[bd.intersects(box(x0, y0, x1, y1))]
+        if len(bd):
+            _plot_lines(ax, bd.geometry, color="white", lw=3.0, alpha=0.8, zorder=4)
+            _plot_lines(ax, bd.geometry, color="#8B1E1E", lw=1.2, ls=(0, (6, 2, 1, 2)), zorder=5)
+    ax.set_aspect("auto"); ax.set_xlim(x0, x1); ax.set_ylim(y0, y1)
+
+    fig.canvas.draw()
+    R = fig.canvas.get_renderer()
+    PT = fig.dpi / 72.0
+    fw, fh = fig.bbox.width, fig.bbox.height
+
+    # ---- legend panel + north arrow / scale bar in the two emptiest corners ----
+    lw_, lh_ = 0.27, 0.25
+    cfrac = {"tl": (0.012, 1 - lh_ - 0.012), "tr": (1 - lw_ - 0.012, 1 - lh_ - 0.012),
+             "bl": (0.012, 0.012), "br": (1 - lw_ - 0.012, 0.012)}
+    def cover(k):
+        fx, fy = cfrac[k]
+        b = box(x0 + fx * w, y0 + fy * h, x0 + (fx + lw_) * w, y0 + (fy + lh_) * h)
+        return union.intersection(b).area / b.area
+    order = sorted(cfrac, key=lambda k: (cover(k), ["bl", "br", "tl", "tr"].index(k)))
+    leg_c, aux_c = order[0], order[1]
+
+    lx, ly = cfrac[leg_c]
+    lax = fig.add_axes([lx, ly, lw_, lh_]); lax.set_xlim(0, 1); lax.set_ylim(0, 1); lax.set_axis_off()
+    lax.add_patch(FancyBboxPatch((0.02, 0.02), 0.96, 0.96, boxstyle="round,pad=0,rounding_size=0.04",
+                                 facecolor="white", edgecolor="#9AA5AE", lw=0.8, alpha=0.95))
+    lax.text(0.5, 0.94, "AQI limits of EPA Punjab", ha="center", va="center", fontsize=7.2, fontweight="bold", color="#1F2D3A")
+    yy = 0.85
+    for i, (lo, hi, en, _ur, fill, _tc) in enumerate(BANDS):
+        lax.add_patch(FancyBboxPatch((0.07, yy - 0.032), 0.16, 0.064, boxstyle="round,pad=0,rounding_size=0.015",
+                                     facecolor=fill, edgecolor="#555", lw=0.3))
+        lax.text(0.27, yy, BAND_LABELS[i], va="center", fontsize=6.4, color="#222", fontweight="bold")
+        lax.text(0.50, yy, en if i != 3 else "Unhealthy (Sensitive)", va="center", fontsize=6.0, color="#333")
+        yy -= 0.092
+    lax.add_patch(FancyBboxPatch((0.07, yy - 0.032), 0.16, 0.064, boxstyle="round,pad=0,rounding_size=0.015",
+                                 facecolor=NO_DATA_FILL, edgecolor="#555", lw=0.3))
+    lax.text(0.27, yy, "No data", va="center", fontsize=6.4, color="#222", fontweight="bold")
+    fig.canvas.draw()
+    leg_box = lax.get_window_extent(R)
+
+    ax_x = x0 + w * (cfrac[aux_c][0] + lw_ / 2)
+    top_side = aux_c[0] == "t"
+    ay_f = cfrac[aux_c][1] + (lh_ * 0.80 if top_side else lh_ * 0.52)
+    ax.annotate("", xy=(ax_x, y0 + h * (ay_f + 0.06)), xytext=(ax_x, y0 + h * ay_f),
+                arrowprops=dict(arrowstyle="-|>,head_width=0.4,head_length=0.8", color="#1F2D3A", lw=1.5), zorder=12)
+    ax.text(ax_x, y0 + h * (ay_f + 0.072), "N", ha="center", va="bottom", fontsize=9, fontweight="bold", color="#1F2D3A",
+            zorder=12, path_effects=[pe.withStroke(linewidth=2.5, foreground="white")])
+    km = [25, 50, 100, 200][int(np.argmin([abs(k * 1000 - w * 0.22) for k in [25, 50, 100, 200]]))]
+    L = km * 1000
+    sx = ax_x - L / 2; sy = y0 + h * (cfrac[aux_c][1] + (lh_ * 0.22 if not top_side else lh_ * 0.45))
+    for k in range(4):
+        ax.add_patch(Rectangle((sx + k * L / 4, sy), L / 4, h * 0.0075,
+                               facecolor="#1F2D3A" if k % 2 == 0 else "white", edgecolor="#1F2D3A", lw=0.6, zorder=12))
+    ax.text(sx, sy + h * 0.013, "0", fontsize=6, ha="center", zorder=12, path_effects=[pe.withStroke(linewidth=2, foreground="white")])
+    ax.text(sx + L, sy + h * 0.013, f"{km} km", fontsize=6, ha="center", zorder=12, path_effects=[pe.withStroke(linewidth=2, foreground="white")])
+    aux_box = Bbox(ax.transData.transform([[sx - L * 0.15, sy - h * 0.01], [sx + L * 1.25, y0 + h * (ay_f + 0.10)]]))
+
+    # ---- district labels ----
+    inv = ax.transData.inverted()
+    axbox = ax.get_window_extent(R).padded(-5)
+
+    def measure(txt, fs, bold=True):
+        t = ax.text(0, 0, txt, fontsize=fs, fontweight="bold" if bold else "normal", transform=None, multialignment="center")
+        e = t.get_window_extent(R)
+        t.remove()
+        return e.width, e.height
+
+    def disp_to_geom(b):
+        (a0, b0), (a1, b1) = inv.transform([[b.x0, b.y0], [b.x1, b.y1]])
+        return box(a0, b0, a1, b1)
+
+    def overlap(b1, b2):
+        x = max(0, min(b1.x1, b2.x1) - max(b1.x0, b2.x0))
+        y = max(0, min(b1.y1, b2.y1) - max(b1.y0, b2.y0))
+        return x * y
+
+    def wrap2(name):
+        if " " not in name:
+            return None
+        parts = name.split(" ")
+        best = min(range(1, len(parts)), key=lambda i: abs(len(" ".join(parts[:i])) - len(" ".join(parts[i:]))))
+        return " ".join(parts[:best]) + "\n" + " ".join(parts[best:])
+
+    rows = []
+    for _, r in dg.iterrows():
+        g = r.geometry
+        part = max(g.geoms, key=lambda p: p.area) if hasattr(g, "geoms") else g
+        rows.append(dict(name=r["_name"], val=r["_val"], geom=part, fill=r["_fill"], area=part.area))
+    rows.sort(key=lambda d: -d["area"])
+
+    obstacles = [leg_box, aux_box]
+    placed, unplaced = [], []
+    for d in rows:
+        val = "–" if d["val"] is None or d["val"] != d["val"] else str(int(d["val"]))
+        d["vs"] = val
+        part = d["geom"]
+        cands = [part.representative_point()]
+        if part.contains(part.centroid):
+            cands.insert(0, part.centroid)
+        mnx, mny, mxx, mxy = part.bounds
+        grid = [Point(mnx + (i + 0.5) * (mxx - mnx) / 9, mny + (j + 0.5) * (mxy - mny) / 9) for i in range(9) for j in range(9)]
+        grid = sorted([p for p in grid if part.contains(p)], key=lambda p: p.distance(part.centroid))
+        cands += grid[:40]
+        tc = band_text(d["val"]) if val != "–" else "#000000"
+        hit = None
+        for fs in PUNJAB_LABEL_FONTS:
+            nm_opts = [d["name"]] + ([wrap2(d["name"])] if wrap2(d["name"]) else [])
+            for nm in nm_opts:
+                nw, nh = measure(nm, fs)
+                vw, vh = measure(val, fs + 2.4)
+                gap = 0.18 * fs * PT
+                bw, bh = max(nw, vw) + 2 * PT, nh + vh + gap
+                for c in cands:
+                    px, py = ax.transData.transform((c.x, c.y))
+                    b = Bbox([[px - bw / 2, py - bh / 2], [px + bw / 2, py + bh / 2]])
+                    if not (axbox.x0 <= b.x0 and b.x1 <= axbox.x1 and axbox.y0 <= b.y0 and b.y1 <= axbox.y1):
+                        continue
+                    if any(overlap(b, o) > 0 for o in obstacles):
+                        continue
+                    if not part.contains(disp_to_geom(b)):
+                        continue
+                    hit = (nm, fs, nh, vh, gap, b, px, py)
+                    break
+                if hit:
+                    break
+            if hit:
+                break
+        if hit:
+            nm, fs, nh, vh, gap, b, px, py = hit
+            ny = b.y1 - nh / 2
+            vy = b.y0 + vh / 2
+            (dx_, ny_d), = inv.transform([[px, ny]]); (_, vy_d), = inv.transform([[px, vy]])
+            ax.text(dx_, ny_d, nm, ha="center", va="center", fontsize=fs, fontweight="bold", color=tc, zorder=10,
+                    multialignment="center", linespacing=0.95)
+            ax.text(dx_, vy_d, val, ha="center", va="center", fontsize=fs + 2.4, fontweight="bold", color=tc, zorder=10)
+            obstacles.append(b)
+            placed.append(d)
+        else:
+            unplaced.append(d)
+
+    # districts too small for an inside label -> callout in free space with a leader line
+    NUM_FS, NAME_FS, NUM_PAD, NAME_PAD = 9, 6.0, 0.28, 0.22
+    angles = [0, 180, 90, 270, 45, 135, 315, 225, 20, 160, 340, 200, 65, 115, 245, 295]
+    radii = [22, 32, 44, 58, 74, 92, 112, 134]
+    placed_lines = []
+
+    def segment_hits(p, q, b):
+        for t in np.linspace(0.15, 0.85, 8):
+            x, y = p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t
+            if b.x0 < x < b.x1 and b.y0 < y < b.y1:
+                return True
+        return False
+
+    for d in unplaced:
+        part = d["geom"]
+        rp = part.representative_point()
+        px, py = ax.transData.transform((rp.x, rp.y))
+        val = d["vs"]
+        nw, nh = measure(val, NUM_FS); nw += 2 * NUM_PAD * NUM_FS * PT; nh += 2 * NUM_PAD * NUM_FS * PT
+        mw, mh = measure(d["name"], NAME_FS); mw += 2 * NAME_PAD * NAME_FS * PT; mh += 2 * NAME_PAD * NAME_FS * PT
+        best = None
+        for r_ in radii:
+            for a in angles:
+                dx, dy = r_ * math.cos(math.radians(a)), r_ * math.sin(math.radians(a))
+                cxp, cyp = px + dx * PT, py + dy * PT
+                nb = Bbox([[cxp - nw / 2, cyp - nh / 2], [cxp + nw / 2, cyp + nh / 2]])
+                top = nb.y0 - 1.5 * PT
+                mb = Bbox([[cxp - mw / 2, top - mh], [cxp + mw / 2, top]])
+                b = Bbox.union([nb, mb]).padded(3)
+                inside = axbox.x0 <= b.x0 and b.x1 <= axbox.x1 and axbox.y0 <= b.y0 and b.y1 <= axbox.y1
+                gb = disp_to_geom(b)
+                on_map = union.intersection(gb).area / gb.area
+                cost = sum(overlap(b, o) for o in obstacles) + (0 if inside else 1e7) + 6000 * on_map
+                cost += sum(2500 for (p0, q0) in placed_lines if segment_hits(p0, q0, b))
+                cost += r_ * 2
+                if best is None or cost < best[0]:
+                    best = (cost, dx, dy, b)
+            if best and best[0] < r_ * 2 + 1:
+                break
+        _, dx, dy, b = best
+        ax.scatter([rp.x], [rp.y], s=7, color="#1B1B1B", edgecolor="white", lw=0.5, zorder=12)
+        tcol = band_text(d["val"]) if val != "–" else "#000000"
+        num = ax.annotate(val, (rp.x, rp.y), xytext=(dx, dy), textcoords="offset points", ha="center", va="center",
+                          fontsize=NUM_FS, fontweight="bold", color=tcol, zorder=14,
+                          bbox=dict(boxstyle=f"round,pad={NUM_PAD},rounding_size=0.25", fc=d["fill"], ec="#1B1B1B", lw=0.8),
+                          arrowprops=dict(arrowstyle="-", color="#1B1B1B", lw=0.8, shrinkA=0, shrinkB=2))
+        ax.annotate(d["name"], xy=(0.5, 0), xycoords=num, xytext=(0, -1.5), textcoords="offset points",
+                    ha="center", va="top", fontsize=NAME_FS, color="#1B1B1B", zorder=14, fontweight="bold",
+                    bbox=dict(boxstyle=f"round,pad={NAME_PAD}", fc="white", ec="#9AA5AE", lw=0.4, alpha=0.95))
+        obstacles.append(b)
+        placed_lines.append(((px, py), (px + dx * PT, py + dy * PT)))
+
+    ax.add_patch(Rectangle((0, 0), 1, 1, transform=ax.transAxes, fill=False, ec="#1F2D3A", lw=1.2, zorder=20))
+    fig.savefig(out_png, dpi=300)
+    plt.close(fig)
+    log(f"  Punjab map: {len(placed)} labels inside districts, {len(unplaced)} as callouts")
+    return out_png
+
+
+# =============================================================================
 # 5. HTML REPORT  ->  PDF
 # =============================================================================
 
@@ -1230,12 +1604,12 @@ body { font-family: 'NotoSansLocal', Arial, sans-serif; color: #111 }
 .main { display: flex; gap: 4mm; margin-top: 4mm; height: 195mm }
 .col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end }
 .msg { flex: 1; min-height: 0; overflow: hidden; margin-bottom: 3mm; padding: 2mm 3mm 1mm; border: 0.3mm solid #E5E5E5; border-radius: 2mm }
-.msg .cat { display: flex; align-items: center; gap: 2mm; font-size: 11pt; line-height: 2; white-space: nowrap }
+.msg .cat { display: flex; align-items: center; gap: 2mm; font-size: 11pt; line-height: 1.8; white-space: nowrap }
 .msg .cat.long { font-size: 9pt; gap: 1.2mm } .msg .cat.long .nm { font-size: 10pt }
 .msg .cat .nm { font-weight: 700; font-size: 13pt }
 .face { width: 9mm; height: 9mm; flex: none }
-.msg h4 { font-size: 12pt; font-weight: 700; line-height: 1.95; margin-top: 1mm }
-.msg li { list-style: none; display: flex; align-items: center; gap: 1.8mm; font-size: 9.6pt; line-height: 1.85 }
+.msg h4 { font-size: 12pt; font-weight: 700; line-height: 1.7; margin-top: 0.8mm }
+.msg li { list-style: none; display: flex; align-items: center; gap: 1.8mm; font-size: 9.6pt; line-height: 1.6 }
 .ic { width: 5.2mm; height: 5.2mm; flex: none }
 table.rk { width: 100%; border-collapse: collapse; direction: rtl }
 table.rk th { font-size: 11pt; font-weight: 700; height: 9mm; border-bottom: 0.3mm solid #999 }
@@ -1275,11 +1649,17 @@ table.st tr.sec td { background: #F8DCD2; font-weight: 700; font-size: 10.5pt }
 .foot2 { font-size: 8.5pt; margin-top: 3mm }
 .dir2 { text-align: center; color: #1E8B3C; font-weight: 700; font-size: 10pt; margin-top: 2mm; font-family: Arial, sans-serif }
 .ph { background: #eee }
+
+/* ---------- page 3 : Punjab district AQI map ---------- */
+.p3 { page: p1; width: 210mm; height: 297mm; padding: 6mm 8mm 5mm; font-family: 'Times New Roman', 'NotoSerifLocal', serif }
+.p3 .h2 .tbox { font-size: 19pt; padding: 1mm 6mm }
+.p3 .h2 .tbox small { font-size: 11pt }
+.mapimg3 { display: block; width: 194mm; height: 220mm; margin-top: 3mm; border: 0.3mm solid #444 }
 """
 
 
 def build_html(districts, punjab_avg, lahore, lahore_city, lahore_tb, map_png, data_date, report_date,
-               map_focus) -> str:
+               map_focus, punjab_map_png=None) -> str:
     bi = band_index(punjab_avg)
     rd = f'{report_date.day} {URDU_MONTHS[report_date.month - 1]} {report_date.year}'
     span = f"{data_date:%d.%m.%Y}, 12:00AM to 11:00PM"
@@ -1305,12 +1685,16 @@ def build_html(districts, punjab_avg, lahore, lahore_city, lahore_tb, map_png, d
     left_h = min(row_h, 7.2)
 
     if bi is not None:
-        pub, sen = PUBLIC_MESSAGES[bi]
         lo, hi = BANDS[bi][0], BANDS[bi][1]
-        msg = (f'<div class="msg ur"><div class="cat{" long" if len(BANDS[bi][3]) > 12 else ""}">{svg_face(bi)}<span class="nm" style="color:#B7950B">'
-               f'{BANDS[bi][3]}</span><span>:</span><span dir="ltr">({lo}—{hi}) (AQI)</span></div>'
-               f'<h4>{UR["public"]}</h4><ul>{"".join(f"<li>{svg_icon(k)}<span>{esc(t)}</span></li>" for k, t in pub)}</ul>'
-               f'<h4>{UR["sensitive"]}</h4><ul>{"".join(f"<li>{svg_icon(k)}<span>{esc(t)}</span></li>" for k, t in sen)}</ul></div>')
+        adv_name, adv_secs = advisory_sections(bi)
+        secs = "".join(
+            f'<h4>{esc(h)}</h4><ul>{"".join(f"<li>{svg_icon(k)}<span>{esc(t)}</span></li>" for k, t in items)}</ul>'
+            for h, items in adv_secs)
+        msg = (f'<div class="msg ur"><div class="cat{" long" if len(adv_name) > 12 else ""}">{svg_face(bi)}<span class="nm" style="color:#B7950B">'
+               f'{esc(adv_name)}</span><span>:</span><span dir="ltr">({lo}—{hi}) (AQI)</span></div>{secs}</div>')
+        # estimated height (mm) of the message box -> the left-hand ranking rows shrink just enough to leave room for it
+        est = 12 + 7.5 * len(adv_secs) + sum(5.6 * (2 if len(t) > 58 else 1) for _h, items in adv_secs for _k, t in items)
+        left_h = max(5.0, min(left_h, (195 - est - 3 - 9) / max(len(left), 1)))
     else:
         msg = '<div class="msg"></div>'
 
@@ -1388,9 +1772,28 @@ def build_html(districts, punjab_avg, lahore, lahore_city, lahore_tb, map_png, d
   <div class="dir2">{esc(DIRECTORATE)}</div>
 </section>"""
 
+    page3 = ""
+    if punjab_map_png:
+        n_d = sum(1 for d in districts if d.value is not None)
+        pavg = "" if punjab_avg is None else round_half_up(punjab_avg)
+        page3 = f"""
+<section class="page p3">
+  <div class="h2">
+    {img_tag(LOGO_PUNJAB, 'lp')}
+    <div class="tb">
+      <div class="tbox" style="background:{band_fill(punjab_avg)};color:{band_text(punjab_avg)}">Average AQI of Punjab <small>({n_d:02d} Districts)</small> ({pavg})</div>
+      <div class="upd">Updated Time: {report_date:%d.%m.%Y} ({REPORT_TIME}) 24 Hourly Report</div>
+    </div>
+    {img_tag(LOGO_EPA, 'le')}
+  </div>
+  <div class="m3"><img class="mapimg3" src="{punjab_map_png.resolve().as_uri()}"></div>
+  <div class="foot2">AQI calculations is performed for last 24 hours ({span}).</div>
+  <div class="dir2">{esc(DIRECTORATE)}</div>
+</section>"""
+
     return f"""<!doctype html><html lang="ur"><head><meta charset="utf-8">
 <title>Daily AQI Report {report_date:%d.%m.%Y}</title>
-<style>{font_faces()}{CSS}</style></head><body>{page1}{page2}</body></html>"""
+<style>{font_faces()}{CSS}</style></head><body>{page1}{page3}{page2}</body></html>"""
 
 
 def html_to_pdf(html_path: Path, pdf_path: Path, log):
@@ -1527,6 +1930,20 @@ def main(argv=None):
     tb = sorted([s for s in report_stations if s.district == focus and s.role == "transboundary"],
                 key=lambda s: (s.value is None, -(s.mean or 0)))
     focus_d = next((d for d in districts if d.name == focus), None)
+    reported = {s.label for s in report_stations if s.district == focus}
+    for label, dist, role in dict.fromkeys(STATION_REGISTRY.values()):
+        if dist != focus or label in reported:
+            continue
+        found = [x for x in stations if x.label == label]
+        if found:
+            x = found[0]
+            log(f"  ! {label} ({role}) is NOT in the report: only {x.n_valid} valid hour(s) after filtering "
+                f"(minimum {a.min_hours}); CSV column '{x.name}'")
+        else:
+            log(f"  ! {label} ({role}) is NOT in the report: no matching '<station> • AQI' column in the CSV")
+    unknown = [x.name for x in stations if x.district is None]
+    if unknown:
+        log(f"  ! stations with no district (not shown anywhere): {', '.join(unknown)}  -> add to STATION_REGISTRY")
 
     map_png = None
     if a.shp:
@@ -1535,9 +1952,13 @@ def main(argv=None):
                              a.out / f"AQMS_Map_{focus.replace(' ', '_')}_{tag}.png", data_date, a.basemap, log,
                              basemap_file=a.basemap_file, refresh_basemap=a.refresh_basemap)
 
+    log("Drawing Punjab district AQI map ...")
+    punjab_map_png = render_punjab_map(districts, a.districts_shp or find_districts_shp(SCRIPT_DIR / "shp"),
+                                       a.out / f"Punjab_District_AQI_Map_{tag}.png", data_date, log)
+
     html_path = a.out / f"DAILY_AQI_REPORT_{tag}.html"
-    html_path.write_text(build_html(districts, punjab_avg, focus_d, city, tb, map_png, data_date, report_date, focus),
-                         encoding="utf-8")
+    html_path.write_text(build_html(districts, punjab_avg, focus_d, city, tb, map_png, data_date, report_date, focus,
+                                    punjab_map_png), encoding="utf-8")
     pdf_path = a.out / f"DAILY_AQI_REPORT_{tag}.pdf"
     if not a.no_pdf:
         log("Rendering PDF ...")
