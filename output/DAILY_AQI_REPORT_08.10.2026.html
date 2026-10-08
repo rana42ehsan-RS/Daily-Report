@@ -1,0 +1,162 @@
+<!doctype html><html lang="ur"><head><meta charset="utf-8">
+<title>Daily AQI Report 08.10.2026</title>
+<style>@font-face{font-family:'NotoNastaliqUrduLocal';src:url('file:///C:/Users/User/Pictures/Daily/daily_aqi_report/fonts/NotoNastaliqUrdu-400.woff2') format('woff2');font-weight:400;}
+@font-face{font-family:'NotoNastaliqUrduLocal';src:url('file:///C:/Users/User/Pictures/Daily/daily_aqi_report/fonts/NotoNastaliqUrdu-700.woff2') format('woff2');font-weight:700;}
+@font-face{font-family:'NotoSerifLocal';src:url('file:///C:/Users/User/Pictures/Daily/daily_aqi_report/fonts/NotoSerif-400.woff2') format('woff2');font-weight:400;}
+@font-face{font-family:'NotoSerifLocal';src:url('file:///C:/Users/User/Pictures/Daily/daily_aqi_report/fonts/NotoSerif-700.woff2') format('woff2');font-weight:700;}
+@font-face{font-family:'NotoSansLocal';src:url('file:///C:/Users/User/Pictures/Daily/daily_aqi_report/fonts/NotoSans-400.woff2') format('woff2');font-weight:400;}
+@font-face{font-family:'NotoSansLocal';src:url('file:///C:/Users/User/Pictures/Daily/daily_aqi_report/fonts/NotoSans-700.woff2') format('woff2');font-weight:700;}
+@page p1 { size: A4 portrait; margin: 0 }
+@page p2 { size: A4 landscape; margin: 0 }
+* { box-sizing: border-box; margin: 0; padding: 0 }
+html, body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact }
+body { font-family: 'NotoSansLocal', Arial, sans-serif; color: #111 }
+.ur { font-family: 'Jameel Noori Nastaleeq', 'NotoNastaliqUrduLocal', 'Urdu Typesetting', serif; direction: rtl }
+.page { position: relative; overflow: hidden; break-after: page }
+.page:last-child { break-after: auto }
+.p1 { page: p1; width: 210mm; height: 297mm; padding: 7mm 8mm 5mm }
+.p2 { page: p2; width: 297mm; height: 210mm; padding: 5mm 8mm 4mm; font-family: 'Times New Roman', 'NotoSerifLocal', serif }
+
+/* ---------- page 1 ---------- */
+.hdr { display: flex; align-items: center; justify-content: space-between; background: #B9E2A6;
+       border-radius: 5mm; height: 30mm; padding: 0 5mm }
+.hdr .logos { display: flex; align-items: center; gap: 3mm; width: 52mm }
+.hdr .lp { height: 20mm } .hdr .le { height: 15mm }
+.hdr .hl { height: 21mm; width: 52mm; object-fit: contain; object-position: right }
+.hdr .ttl { text-align: center; flex: 1 }
+.hdr .ttl .t1 { font-size: 17pt; font-weight: 700; line-height: 1.9; white-space: nowrap }
+.hdr .ttl .t2 { font-size: 12pt; font-weight: 700; line-height: 1.9; margin-top: 1.5mm }
+.hdr .ttl .t2 .n { font-family: 'NotoSansLocal', Arial, sans-serif; font-size: 11pt }
+.band { display: flex; align-items: center; justify-content: space-between; background: #F8DCD2;
+        border-radius: 4mm; height: 19mm; margin-top: 3mm; padding: 0 6mm }
+.msgpill { background: #CFE6F7; border: 0.35mm solid #444; padding: 0 6mm; font-size: 13pt; font-weight: 700; line-height: 2.1 }
+.avg { display: flex; align-items: center; gap: 4mm }
+.avgbox { min-width: 30mm; text-align: center; font-size: 22pt; font-weight: 700; border: 0.35mm solid #444; line-height: 12mm }
+.avglbl { font-size: 15pt; font-weight: 700; line-height: 2 }
+.avglbl b { font-family: 'NotoSansLocal', Arial, sans-serif; font-size: 14pt }
+.gauge { height: 16mm }
+.main { display: flex; gap: 4mm; margin-top: 4mm; height: 195mm }
+.col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end }
+.msg { flex: 1; min-height: 0; overflow: hidden; margin-bottom: 3mm; padding: 2mm 3mm 1mm; border: 0.3mm solid #E5E5E5; border-radius: 2mm }
+.msg .cat { display: flex; align-items: center; gap: 2mm; font-size: 11pt; line-height: 1.8; white-space: nowrap }
+.msg .cat.long { font-size: 9pt; gap: 1.2mm } .msg .cat.long .nm { font-size: 10pt }
+.msg .cat .nm { font-weight: 700; font-size: 13pt }
+.face { width: 9mm; height: 9mm; flex: none }
+.msg h4 { font-size: 12pt; font-weight: 700; line-height: 1.7; margin-top: 0.8mm }
+.msg li { list-style: none; display: flex; align-items: center; gap: 1.8mm; font-size: 9.6pt; line-height: 1.6 }
+.ic { width: 5.2mm; height: 5.2mm; flex: none }
+table.rk { width: 100%; border-collapse: collapse; direction: rtl }
+table.rk th { font-size: 11pt; font-weight: 700; height: 9mm; border-bottom: 0.3mm solid #999 }
+table.rk th.en { font-family: 'NotoSansLocal', Arial, sans-serif; font-size: 10.5pt }
+table.rk td { border-bottom: 0.2mm solid #E3E3E3; text-align: center; vertical-align: middle }
+table.rk td.r { width: 11mm; font-family: 'NotoSansLocal', Arial, sans-serif; font-size: 9.5pt; direction: ltr }
+table.rk td.d { width: 30mm; font-size: 10.5pt; font-weight: 700; line-height: 1 }
+table.rk td.a { width: 15mm; font-family: 'NotoSansLocal', Arial, sans-serif; font-weight: 700; font-size: 12.5pt }
+table.rk td.c { font-family: 'NotoSansLocal', Arial, sans-serif; font-size: 8.4pt; direction: ltr }
+table.rk td.c.ur { font-family: 'Jameel Noori Nastaleeq', 'NotoNastaliqUrduLocal', serif; direction: rtl; color: #777 }
+.legend { display: flex; gap: 1.2mm; margin-top: 3mm }
+.legend div { flex: 1; text-align: center; font-size: 7.2pt; font-weight: 700; line-height: 1.2; display: flex; flex-direction: column; justify-content: flex-end }
+.legend div small { display: block; font-weight: 700; font-size: 6.4pt }
+.legend i { display: block; height: 5mm; border-radius: 1.5mm; margin-top: 1mm; flex: none }
+.legend div small { min-height: 5.5mm }
+.foot { font-size: 8pt; margin-top: 2.5mm; padding-left: 4mm }
+.dir { text-align: center; color: #1E8B3C; font-weight: 700; font-size: 9pt; margin-top: 1.8mm }
+
+/* ---------- focus-district AQMS map (physical page 3) ---------- */
+.h2 { display: flex; align-items: center; justify-content: space-between; height: 28mm }
+.h2 .lp { height: 25mm } .h2 .le { height: 25mm }
+.h2 .tb { text-align: center }
+.h2 .tbox { border: 0.5mm solid #111; padding: 1mm 10mm; font-size: 26pt; font-weight: 700; display: inline-block }
+.h2 .tbox small { font-size: 13pt }
+.h2 .upd { font-size: 14pt; font-weight: 700; margin-top: 2mm }
+.body2 { display: flex; gap: 3mm; margin-top: 3mm; align-items: flex-start }
+.mapimg { width: 126mm; height: 214mm; border: 0.3mm solid #444; flex: none }
+table.st { border-collapse: collapse; width: 65mm; font-size: 8.6pt }
+table.st th, table.st td { border: 0.25mm solid #555; text-align: center; padding: 0 1mm }
+table.st th { background: #F8DCD2; height: 10.5mm; font-size: 9pt }
+table.st td { height: var(--rh, 11.4mm) }
+table.st td.a { font-weight: 700; font-size: 9.5pt; width: 10mm }
+table.st td.rk { font-weight: 700; width: 9mm }
+table.st tr.sec td { background: #F8DCD2; font-weight: 700; font-size: 9pt }
+.tdot { display: inline-block; width: 4mm; height: 4mm; border-radius: 50%; background: #E03C31; color: #fff;
+        font: 700 7pt/4mm Arial, sans-serif; text-align: center; vertical-align: middle; margin-right: 1mm }
+.foot2 { font-size: 8.5pt; margin-top: 3mm }
+.dir2 { text-align: center; color: #1E8B3C; font-weight: 700; font-size: 10pt; margin-top: 2mm; font-family: Arial, sans-serif }
+.ph { background: #eee }
+
+/* ---------- Punjab district AQI map (physical page 2) ---------- */
+.p3 { page: p1; width: 210mm; height: 297mm; padding: 6mm 8mm 5mm; font-family: 'Times New Roman', 'NotoSerifLocal', serif }
+.p2 .h2 .tbox, .p3 .h2 .tbox { font-size: 19pt; padding: 1mm 6mm }
+.p2 .h2 .tbox small, .p3 .h2 .tbox small { font-size: 11pt }
+.p2 .h2 { height: 25mm }
+.p2 .h2 .lp, .p2 .h2 .le { height: 22mm }
+.p2 .body2 { gap: 3mm; margin-top: 2mm }
+.p2 .mapimg { width: 196mm; height: 145mm }
+.p2 table.st { width: 80mm; font-size: 8pt }
+.p2 table.st th { height: 8mm; font-size: 8.2pt }
+.p2 .foot2 { margin-top: 2mm }
+.p2 .dir2 { margin-top: 1mm }
+.mapimg3 { display: block; width: 194mm; height: 220mm; margin-top: 3mm; border: 0.3mm solid #444 }
+</style></head><body>
+<section class="page p1">
+  <div class="hdr">
+    <div class="logos"><img class="lp" src="file:///C:/Users/User/Pictures/Daily/daily_aqi_report/assets/logo_punjab.png"><img class="le" src="file:///C:/Users/User/Pictures/Daily/daily_aqi_report/assets/logo_epa.png"></div>
+    <div class="ttl ur"><div class="t1">پنجاب کے فضائی معیار کی رپورٹ</div>
+      <div class="t2"><span class="n">8</span> اکتوبر <span class="n">2026</span> &nbsp;&nbsp;&nbsp; گزشتہ چوبیس گھنٹے</div></div>
+    <img class="hl" src="file:///C:/Users/User/Pictures/Daily/daily_aqi_report/assets/helpline_1373.png">
+  </div>
+  <div class="band">
+    <div class="msgpill ur">عوام کے نام پیغام</div>
+    <div class="avg">
+      <div class="avgbox" style="background:#FFFF00;color:#000000">140</div>
+      <div class="avglbl ur">اوسط <b>AQI</b></div>
+      <svg class="gauge" viewBox="0 0 120 64"><path d="M8.0,58.0 A52,52 0 0 1 13.1,35.4 L33.0,45.0 A30,30 0 0 0 30.0,58.0Z" fill="#00B050" stroke="#fff" stroke-width="1.2"/><path d="M13.1,35.4 A52,52 0 0 1 27.6,17.3 L41.3,34.5 A30,30 0 0 0 33.0,45.0Z" fill="#92D050" stroke="#fff" stroke-width="1.2"/><path d="M27.6,17.3 A52,52 0 0 1 48.4,7.3 L53.3,28.8 A30,30 0 0 0 41.3,34.5Z" fill="#FFFF00" stroke="#fff" stroke-width="1.2"/><path d="M48.4,7.3 A52,52 0 0 1 71.6,7.3 L66.7,28.8 A30,30 0 0 0 53.3,28.8Z" fill="#ED7D31" stroke="#fff" stroke-width="1.2"/><path d="M71.6,7.3 A52,52 0 0 1 92.4,17.3 L78.7,34.5 A30,30 0 0 0 66.7,28.8Z" fill="#FF0000" stroke="#fff" stroke-width="1.2"/><path d="M92.4,17.3 A52,52 0 0 1 106.9,35.4 L87.0,45.0 A30,30 0 0 0 78.7,34.5Z" fill="#7030A0" stroke="#fff" stroke-width="1.2"/><path d="M106.9,35.4 A52,52 0 0 1 112.0,58.0 L90.0,58.0 A30,30 0 0 0 87.0,45.0Z" fill="#C00000" stroke="#fff" stroke-width="1.2"/><line x1="60" y1="58" x2="45.3" y2="12.3" stroke="#333" stroke-width="4" stroke-linecap="round"/><circle cx="60" cy="58" r="6" fill="#333"/></svg>
+    </div>
+  </div>
+  <div class="main">
+    <div class="col">
+      <div class="msg ur"><div class="cat"><svg class="face" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10.5" fill="#FFFF00" fill-opacity=".35" stroke="#333" stroke-width="1.1"/><circle cx="8.5" cy="9.5" r="1.2" fill="#333"/><circle cx="15.5" cy="9.5" r="1.2" fill="#333"/><path d="M8 15.5h8" stroke="#333" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg><span class="nm" style="color:#B7950B">معتدل</span><span>:</span><span dir="ltr">(101—150) (AQI)</span></div><h4>عوامُ النَّاسِ:</h4><ul><li><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="13" width="4" height="8" rx="1" fill="#2E86C1"/><rect x="10" y="8" width="4" height="13" rx="1" fill="#F1C40F"/><rect x="17" y="3" width="4" height="18" rx="1" fill="#E74C3C"/></svg><span>باہر کی سرگرمیوں کی منصوبہ بندی کے لیے AQI کو مدنظر رکھیں۔</span></li></ul><h4>حساس گروہ:</h4><ul><li><svg class="ic" viewBox="0 0 24 24"><path d="M12 21s-8-5.2-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.8-8 11-8 11z" fill="#E74C3C"/><path d="M5 12h4l1.5-3 2 6 1.5-3h5" stroke="#fff" stroke-width="1.4" fill="none"/></svg><span>صحت کی باقاعدگی سے نگرانی کریں (آکسیجن، بی پی، وغیرہ)۔</span></li><li><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="14" r="7" fill="#E74C3C"/><path d="M12 7c0-2 1-4 3-4" stroke="#6E2C00" stroke-width="1.5" fill="none"/><ellipse cx="15.5" cy="5.5" rx="2.5" ry="1.3" fill="#27AE60"/></svg><span>قوتِ مدافعت بڑھانے کے لیے صحت بخش غذا کھائیں۔</span></li><li><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="11" width="15" height="3" fill="#BDC3C7"/><rect x="15" y="11" width="3" height="3" fill="#E67E22"/><circle cx="12" cy="12.5" r="9" stroke="#C0392B" stroke-width="2" fill="none"/><path d="M5.6 6.1l12.8 12.8" stroke="#C0392B" stroke-width="2"/></svg><span>تمباکو نوشی سے گریز کریں۔</span></li><li><svg class="ic" viewBox="0 0 24 24"><circle cx="14" cy="4" r="2.2" fill="#2C3E50"/><path d="M9 21l3-6 3 3v4M12 15l1-6 4 3h3M13 9l-4 1-2 3" stroke="#2C3E50" stroke-width="2" fill="none" stroke-linecap="round"/></svg><span>باہر کی سرگرمیوں کو محدود کریں۔</span></li><li><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2" fill="#ECF0F1" stroke="#2C3E50" stroke-width="1.2"/><path d="M9 7V5h6v2" stroke="#2C3E50" stroke-width="1.2" fill="none"/><path d="M12 10v7M8.5 13.5h7" stroke="#E74C3C" stroke-width="2.4"/></svg><span>ہنگامی امداد کے آلات (جیسے نیبولائزر) تیار رکھیں۔</span></li><li><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4" fill="#F5CBA7"/><path d="M4 22c0-5 3.5-8 8-8s8 3 8 8z" fill="#5DADE2"/><path d="M12 15v4M10 17h4" stroke="#fff" stroke-width="1.6"/></svg><span>اگر سانس کے مسائل پیدا ہوں تو ڈاکٹر سے مشورہ کریں۔</span></li></ul></div>
+      <table class="rk" style="--h:7.2mm"><thead><tr><th class="ur">درجہ</th><th class="ur">ضلع</th><th class="en">AQI</th><th class="ur">بنیادی وجوہات</th></tr></thead><tbody><tr><td class="r">23.</td><td class="d ur">مری</td><td class="a" style="background:#FFFF00;color:#000000">125</td><td class="c">O3 &gt; PM2.5</td></tr><tr><td class="r">24.</td><td class="d ur">گوجرانوالہ</td><td class="a" style="background:#FFFF00;color:#000000">125</td><td class="c">PM10 &gt; PM2.5 &gt; NO2</td></tr><tr><td class="r">25.</td><td class="d ur">چکوال</td><td class="a" style="background:#FFFF00;color:#000000">123</td><td class="c">PM2.5</td></tr><tr><td class="r">26.</td><td class="d ur">قصور</td><td class="a" style="background:#FFFF00;color:#000000">122</td><td class="c">PM2.5 &gt; PM10</td></tr><tr><td class="r">27.</td><td class="d ur">راولپنڈی</td><td class="a" style="background:#FFFF00;color:#000000">117</td><td class="c">PM2.5 &gt; O3 &gt; PM10</td></tr><tr><td class="r">28.</td><td class="d ur">منڈی بہاؤالدین</td><td class="a" style="background:#FFFF00;color:#000000">117</td><td class="c">PM2.5 &gt; O3</td></tr><tr><td class="r">29.</td><td class="d ur">تلہ گنگ</td><td class="a" style="background:#FFFF00;color:#000000">114</td><td class="c">PM2.5 &gt; O3</td></tr><tr><td class="r">30.</td><td class="d ur">نارووال</td><td class="a" style="background:#FFFF00;color:#000000">113</td><td class="c">PM2.5</td></tr><tr><td class="r">31.</td><td class="d ur">گجرات</td><td class="a" style="background:#FFFF00;color:#000000">111</td><td class="c">PM2.5</td></tr><tr><td class="r">32.</td><td class="d ur">کوٹ ادو</td><td class="a" style="background:#FFFF00;color:#000000">107</td><td class="c">PM2.5 &gt; PM10 &gt; O3</td></tr><tr><td class="r">33.</td><td class="d ur">رحیم یار خان</td><td class="a" style="background:#FFFF00;color:#000000">103</td><td class="c">PM2.5 &gt; PM10</td></tr><tr><td class="r">34.</td><td class="d ur">جہلم</td><td class="a" style="background:#92D050;color:#000000">97</td><td class="c">PM10 &gt; PM2.5 &gt; O3</td></tr><tr><td class="r">35.</td><td class="d ur">سیالکوٹ</td><td class="a" style="background:#92D050;color:#000000">89</td><td class="c">PM2.5 &gt; PM10 &gt; O3</td></tr><tr><td class="r">36.</td><td class="d ur">چنیوٹ</td><td class="a" style="background:#D9D9D9"></td><td class="c"></td></tr></tbody></table>
+    </div>
+    <div class="col">
+      <table class="rk"><thead><tr><th class="ur">درجہ</th><th class="ur">ضلع</th><th class="en">AQI</th><th class="ur">بنیادی وجوہات</th></tr></thead><tbody><tr><td class="r">1.</td><td class="d ur">بہاولپور</td><td class="a" style="background:#FF0000;color:#FFFFFF">230</td><td class="c">PM10 &gt; PM2.5 &gt; NO2</td></tr><tr><td class="r">2.</td><td class="d ur">ملتان</td><td class="a" style="background:#FF0000;color:#FFFFFF">203</td><td class="c">PM10 &gt; PM2.5 &gt; O3</td></tr><tr><td class="r">3.</td><td class="d ur">ساہیوال</td><td class="a" style="background:#ED7D31;color:#000000">198</td><td class="c">PM10 &gt; PM2.5</td></tr><tr><td class="r">4.</td><td class="d ur">پاکپتن</td><td class="a" style="background:#ED7D31;color:#000000">181</td><td class="c">PM10 &gt; PM2.5</td></tr><tr><td class="r">5.</td><td class="d ur">ننکانہ صاحب</td><td class="a" style="background:#ED7D31;color:#000000">179</td><td class="c">PM10 &gt; PM2.5 &gt; O3</td></tr><tr><td class="r">6.</td><td class="d ur">وہاڑی</td><td class="a" style="background:#ED7D31;color:#000000">177</td><td class="c">PM10 &gt; PM2.5</td></tr><tr><td class="r">7.</td><td class="d ur">مظفر گڑھ</td><td class="a" style="background:#ED7D31;color:#000000">174</td><td class="c">PM10 &gt; PM2.5 &gt; CO</td></tr><tr><td class="r">8.</td><td class="d ur">ڈیرہ غازی خان</td><td class="a" style="background:#ED7D31;color:#000000">166</td><td class="c">PM10 &gt; PM2.5 &gt; O3</td></tr><tr><td class="r">9.</td><td class="d ur">جھنگ</td><td class="a" style="background:#ED7D31;color:#000000">157</td><td class="c">PM2.5 &gt; PM10</td></tr><tr><td class="r">10.</td><td class="d ur">حافظ آباد</td><td class="a" style="background:#ED7D31;color:#000000">156</td><td class="c">PM2.5</td></tr><tr><td class="r">11.</td><td class="d ur">فیصل آباد</td><td class="a" style="background:#FFFF00;color:#000000">149</td><td class="c">PM10 &gt; PM2.5 &gt; NO2</td></tr><tr><td class="r">12.</td><td class="d ur">لاہور</td><td class="a" style="background:#FFFF00;color:#000000">147</td><td class="c">PM2.5 &gt; PM10 &gt; O3</td></tr><tr><td class="r">13.</td><td class="d ur">میانوالی</td><td class="a" style="background:#FFFF00;color:#000000">143</td><td class="c">PM2.5 &gt; O3 &gt; PM10</td></tr><tr><td class="r">14.</td><td class="d ur">اٹک</td><td class="a" style="background:#FFFF00;color:#000000">137</td><td class="c">PM2.5</td></tr><tr><td class="r">15.</td><td class="d ur">راجن پور</td><td class="a" style="background:#FFFF00;color:#000000">135</td><td class="c">PM2.5 &gt; PM10</td></tr><tr><td class="r">16.</td><td class="d ur">شیخوپورہ</td><td class="a" style="background:#FFFF00;color:#000000">135</td><td class="c">PM2.5 &gt; PM10 &gt; O3</td></tr><tr><td class="r">17.</td><td class="d ur">اوکاڑہ</td><td class="a" style="background:#FFFF00;color:#000000">134</td><td class="c">PM10 &gt; PM2.5 &gt; SO2</td></tr><tr><td class="r">18.</td><td class="d ur">سرگودھا</td><td class="a" style="background:#FFFF00;color:#000000">134</td><td class="c">PM2.5 &gt; PM10 &gt; O3</td></tr><tr><td class="r">19.</td><td class="d ur">بھکر</td><td class="a" style="background:#FFFF00;color:#000000">133</td><td class="c">PM2.5 &gt; PM10 &gt; O3</td></tr><tr><td class="r">20.</td><td class="d ur">خوشاب</td><td class="a" style="background:#FFFF00;color:#000000">132</td><td class="c">PM2.5 &gt; PM10</td></tr><tr><td class="r">21.</td><td class="d ur">وزیر آباد</td><td class="a" style="background:#FFFF00;color:#000000">132</td><td class="c">PM10 &gt; PM2.5</td></tr><tr><td class="r">22.</td><td class="d ur">خانیوال</td><td class="a" style="background:#FFFF00;color:#000000">126</td><td class="c">PM10 &gt; PM2.5</td></tr></tbody></table>
+    </div>
+  </div>
+  <div class="legend"><div>0-50<small>(Good)</small><i style="background:#00B050"></i></div><div>51-100<small>(Satisfactory)</small><i style="background:#92D050"></i></div><div>101-150<small>(Moderate)</small><i style="background:#FFFF00"></i></div><div>151-200<small>(Unhealthy for Sensitive Groups)</small><i style="background:#ED7D31"></i></div><div>201-300<small>(Unhealthy)</small><i style="background:#FF0000"></i></div><div>301-400<small>(Very Unhealthy)</small><i style="background:#7030A0"></i></div><div>401+<small>(Hazardous)</small><i style="background:#C00000"></i></div></div>
+  <div class="foot">AQI calculations is performed for last 24 hours (07.10.2026, 12:00AM to 11:00PM).</div>
+  <div class="dir">Directorate of Environmental Monitoring Center, Environmental Protection Agency Punjab.</div>
+</section>
+<style>.p1 .main .col:last-child table.rk td { height: 8.20mm } .p1 .main .col:first-child table.rk td { height: 7.20mm }</style>
+
+<section class="page p3">
+  <div class="h2">
+    <img class="lp" src="file:///C:/Users/User/Pictures/Daily/daily_aqi_report/assets/logo_punjab.png">
+    <div class="tb">
+      <div class="tbox" style="background:#FFFF00;color:#000000">Average AQI of Punjab <small>(35 Districts)</small> (140)</div>
+      <div class="upd">Updated Time: 08.10.2026 (06:30AM) 24 Hourly Report</div>
+    </div>
+    <img class="le" src="file:///C:/Users/User/Pictures/Daily/daily_aqi_report/assets/logo_epa.png">
+  </div>
+  <div class="m3"><img class="mapimg3" src="file:///C:/Users/User/Pictures/Daily/daily_aqi_report/output/Punjab_District_AQI_Map_08.10.2026.png"></div>
+  <div class="foot2">AQI calculations is performed for last 24 hours (07.10.2026, 12:00AM to 11:00PM).</div>
+  <div class="dir2">Directorate of Environmental Monitoring Center, Environmental Protection Agency Punjab.</div>
+</section>
+<section class="page p2">
+  <div class="h2">
+    <img class="lp" src="file:///C:/Users/User/Pictures/Daily/daily_aqi_report/assets/logo_punjab.png">
+    <div class="tb">
+      <div class="tbox" style="background:#FFFF00;color:#000000">Average AQI of Lahore <small>(10 AQMS)</small> (147)</div>
+      <div class="upd">Updated Time: 08.10.2026 (06:30AM) 24 Hourly Report</div>
+    </div>
+    <img class="le" src="file:///C:/Users/User/Pictures/Daily/daily_aqi_report/assets/logo_epa.png">
+  </div>
+  <div class="body2">
+    <img class="mapimg" src="file:///C:/Users/User/Pictures/Daily/daily_aqi_report/output/AQMS_Map_Lahore_08.10.2026.png">
+    <table class="st" style="--rh:9.79mm">
+      <thead><tr><th>Rank</th><th>Location</th><th>AQI</th><th>Dominant Pollutant</th></tr></thead>
+      <tbody><tr><td class="rk">01</td><td>LWMC</td><td class="a" style="background:#ED7D31;color:#000000">172</td><td>PM2.5 &gt; PM10</td></tr><tr><td class="rk">02</td><td>Shahdara</td><td class="a" style="background:#ED7D31;color:#000000">168</td><td>PM2.5 &gt; PM10</td></tr><tr><td class="rk">03</td><td>Safari Park</td><td class="a" style="background:#ED7D31;color:#000000">167</td><td>PM2.5</td></tr><tr><td class="rk">04</td><td>UET</td><td class="a" style="background:#ED7D31;color:#000000">151</td><td>PM2.5 &gt; PM10</td></tr><tr><td class="rk">05</td><td>FMDRC</td><td class="a" style="background:#FFFF00;color:#000000">150</td><td>PM2.5 &gt; PM10</td></tr><tr><td class="rk">06</td><td>PKLI</td><td class="a" style="background:#FFFF00;color:#000000">148</td><td>PM2.5</td></tr><tr><td class="rk">07</td><td>Punjab University</td><td class="a" style="background:#FFFF00;color:#000000">134</td><td>PM2.5 &gt; PM10</td></tr><tr><td class="rk">08</td><td>Egerton Road</td><td class="a" style="background:#FFFF00;color:#000000">133</td><td>PM2.5 &gt; PM10</td></tr><tr><td class="rk">09</td><td>Kahna Nau</td><td class="a" style="background:#FFFF00;color:#000000">132</td><td>PM2.5 &gt; PM10</td></tr><tr><td class="rk">10</td><td>Gulberg III</td><td class="a" style="background:#FFFF00;color:#000000">116</td><td>PM10 &gt; O3</td></tr><tr class="sec"><td colspan="4"><span class="tdot">T</span>Transboundary AQMS</td></tr><tr><td class="rk">01</td><td>Lathepur</td><td class="a" style="background:#FFFF00;color:#000000">126</td><td>PM2.5 &gt; PM10</td></tr><tr><td class="rk">02</td><td>Wagha</td><td class="a" style="background:#FFFF00;color:#000000">122</td><td>PM10 &gt; PM2.5</td></tr><tr><td class="rk">03</td><td>BHU Jandiala</td><td class="a" style="background:#FFFF00;color:#000000">112</td><td>PM2.5 &gt; PM10 &gt; O3</td></tr></tbody>
+    </table>
+  </div>
+  <div class="foot2">AQI calculations is performed for last 24 hours (07.10.2026, 12:00AM to 11:00PM).</div>
+  <div class="dir2">Directorate of Environmental Monitoring Center, Environmental Protection Agency Punjab.</div>
+</section></body></html>
