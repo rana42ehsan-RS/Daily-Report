@@ -2012,6 +2012,7 @@ def write_docx_from_pdf(pdf_path: Path, docx_path: Path, dpi: int = 300):
     import pymupdf
     from docx import Document
     from docx.enum.section import WD_ORIENT, WD_SECTION
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Mm, Pt
 
     doc = Document()
@@ -2024,17 +2025,19 @@ def write_docx_from_pdf(pdf_path: Path, docx_path: Path, dpi: int = 300):
                 section.orientation = WD_ORIENT.LANDSCAPE if width_mm > height_mm else WD_ORIENT.PORTRAIT
                 section.page_width = Mm(width_mm)
                 section.page_height = Mm(height_mm)
-                section.left_margin = section.right_margin = Mm(0)
-                section.top_margin = section.bottom_margin = Mm(0)
+                section.left_margin = section.right_margin = Mm(4)
+                section.top_margin = section.bottom_margin = Mm(4)
                 section.header_distance = section.footer_distance = Mm(0)
 
                 page_image = Path(temp_dir) / f"page_{index + 1}.png"
                 page.get_pixmap(matrix=pymupdf.Matrix(dpi / 72, dpi / 72), alpha=False).save(page_image)
                 paragraph = doc.add_paragraph()
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 paragraph.paragraph_format.space_before = Pt(0)
                 paragraph.paragraph_format.space_after = Pt(0)
                 paragraph.paragraph_format.line_spacing = Pt(1)
-                paragraph.add_run().add_picture(str(page_image), width=Mm(width_mm), height=Mm(height_mm))
+                paragraph.add_run().add_picture(str(page_image), width=Mm(width_mm - 10),
+                                                height=Mm(height_mm - 10))
 
     doc.save(str(docx_path))
 
