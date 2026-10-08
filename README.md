@@ -9,7 +9,7 @@ pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-Playwright's Chromium turns the HTML page into the PDF. It lays out Urdu Nastaliq correctly, which matplotlib and ReportLab cannot do.
+Playwright's Chromium turns the HTML page into the PDF. It lays out Urdu Nastaliq correctly, which matplotlib and ReportLab cannot do. The Word report is made from 300-dpi images of those PDF pages, so its printed appearance matches the PDF.
 
 ## 2. Folder layout
 
@@ -58,20 +58,19 @@ Useful options:
 | `--refresh-basemap` / `--test-basemap` | Download a fresh copy of the street map / test which providers work on this network. |
 | `--focus "Lahore"` | District shown on the zoomed map (page 3). |
 | `--report-date 2026-09-30` | Date printed on the report. The default is the data date + 1. |
-| `--min-hours 18` | Minimum valid hours for a station to be reported. |
-| `--keep-zero-aqi` | Counts "AQI 0 with no pollutant" hours the way the dashboard Average row does. |
 
 ## 4. Outputs (in `output/`)
 
-- `DAILY_AQI_REPORT_dd.mm.yyyy.pdf`: page 1 (Urdu ranking), page 2 (Punjab district AQI map), and page 3 (focus-district AQMS map)
+- `DAILY_AQI_REPORT_dd.mm.yyyy.pdf`: page 1 (Urdu ranking), page 2 (Punjab district AQI map), and page 3 (landscape focus-district AQMS map with all located stations and table)
 - `Punjab_District_AQI_Map_dd.mm.yyyy.png`: Punjab district AQI map
 - `AQMS_Map_Lahore_dd.mm.yyyy.png`: the zoomed map at 300 dpi, for WhatsApp or slides
 - `AQI_Summary_dd.mm.yyyy.xlsx`: sheets Districts, Stations, QA_Flags, Shapefile_Match, Hourly
 - `DAILY_AQI_REPORT_dd.mm.yyyy.html`: the same report as a web page
+- `DAILY_AQI_REPORT_dd.mm.yyyy.docx`: Word copy with one full-page image per PDF page for consistent printing; its page content is not editable
 
 ## 5. How the figures are calculated
 
-- **Station AQI** is the mean of the day's valid hourly AQI. A station needs at least 18 valid hours; with fewer it is shown as "ڈیٹا دستیاب نہیں". An hour with AQI 0 and no dominant pollutant counts as a gap.
+- **Station AQI** is the mean of all hourly AQI values present in the CSV. A station needs at least 18 present AQI values; with fewer it is shown as "ڈیٹا دستیاب نہیں". AQI 0 values and isolated peaks are included in the mean; the QA_Flags and Hourly sheets flag unusual readings without excluding them. Missing AQI values are not counted.
 - **District AQI** is the mean of its stations. Transboundary stations (Lathepur, Wagha, BHU Jandiala) are listed separately and are not averaged in.
 - **Punjab average** is the mean of the district values.
 - **Dominant pollutants** are the three pollutants that were dominant in the most hours. Ties go to the one seen first.

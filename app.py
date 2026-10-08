@@ -23,8 +23,9 @@ DISTRICTS_SHP = (daily_aqi_report.find_districts_shp(SHP_DIR)   # Punjab distric
                  if hasattr(daily_aqi_report, "find_districts_shp") else None)
 
 MIME = {".pdf": "application/pdf", ".html": "text/html", ".png": "image/png",
-        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
-ORDER = {".pdf": 0, ".xlsx": 1, ".png": 2, ".html": 3}
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+ORDER = {".pdf": 0, ".docx": 1, ".xlsx": 2, ".png": 3, ".html": 4}
 
 
 def wide() -> dict:
@@ -34,7 +35,7 @@ def wide() -> dict:
     return {"use_container_width": True}
 
 
-def run_report(uploaded_csv, focus: str, basemap: str, keep_zero: bool) -> tuple[dict[str, bytes], str]:
+def run_report(uploaded_csv, focus: str, basemap: str) -> tuple[dict[str, bytes], str]:
     with tempfile.TemporaryDirectory() as work_dir:
         work = Path(work_dir)
         csv_path = work / uploaded_csv.name
@@ -49,9 +50,6 @@ def run_report(uploaded_csv, focus: str, basemap: str, keep_zero: bool) -> tuple
         ]
         if DISTRICTS_SHP is not None:
             args += ["--districts-shp", str(DISTRICTS_SHP)]
-        if keep_zero:
-            args.append("--keep-zero-aqi")
-
         if "CHROMIUM_PATH" not in os.environ:
             for candidate in ("/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome"):
                 if Path(candidate).exists():
@@ -91,7 +89,6 @@ uploaded_csv = st.file_uploader("Station-level CSV", type=["csv"], help="Use the
 with st.expander("Report options", expanded=True):
     focus = st.text_input("Map district", value=daily_aqi_report.FOCUS_DISTRICT)
     basemap = st.selectbox("Basemap", ["osm", "voyager", "esri-street", "positron", "satellite", "none"], index=0)
-    keep_zero = st.checkbox("Count AQI = 0 rows with no pollutant", value=False)
 
 if DISTRICTS_SHP is None:
     st.warning("No Punjab district shapefile found in the shp folder (a file with 'dist' in its name), "
@@ -103,7 +100,7 @@ if st.button("Generate report", type="primary", disabled=uploaded_csv is None, *
     else:
         with st.spinner("Calculating AQI and building report files..."):
             try:
-                files, log = run_report(uploaded_csv, focus, basemap, keep_zero)
+                files, log = run_report(uploaded_csv, focus, basemap)
             except Exception as exc:
                 st.error(str(exc))
             else:

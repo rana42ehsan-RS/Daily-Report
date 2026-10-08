@@ -13,6 +13,7 @@ What it produces (all in the output folder):
   2. AQMS_Map_<District>_<dd.mm.yyyy>.png  High-resolution zoomed AQMS map (300 dpi)
   3. AQI_Summary_<dd.mm.yyyy>.xlsx        Districts, Stations, Hourly data, QA flags
   4. DAILY_AQI_REPORT_<dd.mm.yyyy>.html   The same report as a web page
+  5. DAILY_AQI_REPORT_<dd.mm.yyyy>.docx   Word copy rendered from the PDF pages
 
 Inputs:
   --csv   Station-level dashboard export ("graphs_periodic_*.csv"), with columns
@@ -35,19 +36,21 @@ Street map (basemap) — tried in this order, first one that works is used:
 How the numbers are calculated (reproduces the existing manual report):
   * Station 24-h AQI     = mean of the valid hourly AQI values for the day.
                            A station needs at least MIN_VALID_HOURS (default 18)
-                           valid hours after filtering, otherwise it is omitted
-                           from report tables and maps (exclusions remain in QA).
-                           An isolated AQI peak more than QA_SPIKE_JUMP above
-                           both comparison hours is excluded; repeated peaks stay.
-                           Filtering uses hourly AQI and dominant-pollutant labels;
-                           pollutant concentrations are not present in this CSV.
-                           An hour with AQI = 0 and no dominant pollutant is a
-                           data gap and is NOT counted (use --keep-zero-aqi to
-                           count it, as the dashboard "Average" row does).
+                           hourly AQI values, otherwise it is omitted from report
+                           tables and maps (exclusions remain in QA). All present
+                           hourly AQI values are included, including zeros and
+                           isolated peaks; QA flags report unusual values without
+                           excluding them. Missing AQI values are not counted.
   * District AQI         = mean of its stations' 24-h AQI (transboundary AQMS
-                           are excluded from district averages).
+                           are shown separately and excluded from district averages).
+                           Stations count in the district they lie in: 11 in Lahore,
+                           3 in Sheikhupura (DHQ Sheikhupura, Lathepur, BHU Jandiala); all 3 are
+                           averaged in Sheikhupura. Lathepur and BHU Jandiala are also drawn on the
+                           Lahore map (as transboundary AQMS, not averaged into Lahore).
+  * District list        = the 36 districts that have AQMS (PUNJAB_DISTRICTS), always all
+                           listed; a district without data is left blank (nothing written).
   * Lahore city AQI      = mean of the Lahore city AQMS (same as district value).
-  * Punjab average AQI   = mean of all district AQI values.
+  * Punjab average AQI   = mean of the district AQI values that have data.
   * Dominant pollutants  = the (up to) three pollutants that were dominant in the
                            most hours, e.g. "PM2.5 > PM10 > O3".
   * Values are rounded half-up (122.5 -> 123).
@@ -67,6 +70,7 @@ import argparse
 import datetime as dt
 import difflib
 import html
+import io
 import math
 import os
 import re
@@ -87,8 +91,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 # CONFIGURATION
 # =============================================================================
 
-MIN_VALID_HOURS = 18            # station needs >= this many valid hours (of 24)
-DROP_ZERO_AQI = True            # AQI 0 with no pollutant = data gap
+MIN_VALID_HOURS = 18            # station needs >= this many hourly AQI values
 REPORT_TIME = "06:30AM"         # printed on page 2 ("Updated Time")
 FOCUS_DISTRICT = "Lahore"       # district shown on the zoomed AQMS map (page 2)
 RIGHT_COLUMN_ROWS = 22          # page 1: ranks 1..22 right column, rest left
@@ -123,6 +126,26 @@ BANDS = [
 ]
 BAND_LABELS = ["0-50", "51-100", "101-150", "151-200", "201-300", "301-400", "401+"]
 NO_DATA_FILL = "#D9D9D9"
+
+# The 36 districts listed on page 1 (the districts that have AQMS stations; always all shown, blank when no data).
+# Bahawalnagar, Layyah, Lodhran, Toba Tek Singh and Taunsa are not listed.
+PUNJAB_DISTRICTS = [
+    "Attock", "Bahawalpur", "Bhakkar", "Chakwal", "Chiniot", "DG Khan", "Faisalabad", "Gujranwala",
+    "Gujrat", "Hafizabad", "Jhang", "Jhelum", "Kasur", "Khanewal", "Khushab", "Kot Addu", "Lahore",
+    "Mandi Bahauddin", "Mianwali", "Multan", "Murree", "Muzaffargarh", "Nankana Sahib", "Narowal",
+    "Okara", "Pakpattan", "Rahim Yar Khan", "Rajanpur", "Rawalpindi", "Sahiwal", "Sargodha",
+    "Sheikhupura", "Sialkot", "Talagang", "Vehari", "Wazirabad",
+]
+
+# Stations drawn on (and listed under) another district's AQMS map, as transboundary AQMS (never averaged)
+MAP_EXTRA_STATIONS = {"Lahore": ("Lathepur", "BHU Jandiala")}
+# Transboundary stations that still count in the average of the district they lie in (page 1 ranking)
+COUNTED_IN_DISTRICT = ("Lathepur", "BHU Jandiala")          # -> Sheikhupura
+
+
+def in_focus(s, focus):
+    return s.district == focus or s.label in MAP_EXTRA_STATIONS.get(focus, ())
+
 
 # District names in Urdu (as printed on page 1)
 DISTRICT_URDU = {
@@ -160,15 +183,22 @@ STATION_REGISTRY = {
     "Govt. Teaching Hospital Shahdara-LHR": ("Shahdara",      "Lahore", "city"),
     "Gulberg III Lahore - Mobile 1":        ("Gulberg III",   "Lahore", "city"),
     "Egerton Road - Mobile 4":              ("Egerton Road",  "Lahore", "city"),
-    "Lathepur LHR - Mobile 2":              ("Lathepur",      "Lahore", "transboundary"),
+    "Lathepur LHR - Mobile 2":              ("Lathepur",      "Sheikhupura", "transboundary"),
     "Wagha Border LHR - Mobile 3":          ("Wagha",         "Lahore", "transboundary"),
-    "BHU Jandiala Kalsan LHR - Mobile 5":   ("BHU Jandiala",  "Lahore", "transboundary"),
+    "BHU Jandiala Kalsan LHR - Mobile 5":   ("BHU Jandiala",  "Sheikhupura", "transboundary"),
     "DHQ Sheikhupura":                      ("DHQ Sheikhupura", "Sheikhupura", "city"),
     "M. Nawaz Sharif University of Engineering & Technology Multan": ("MNSUET Multan", "Multan", "city"),
     "IUB (Baghdad Campus) Bahawalpur":      ("IUB Baghdad Campus", "Bahawalpur", "city"),
     "IUB (Khawaja Fareed Campus) Bahawalpur": ("IUB Khawaja Fareed Campus", "Bahawalpur", "city"),
     "Drug Testing Laboratory Rawalpindi":   ("DTL Rawalpindi", "Rawalpindi", "city"),
     "Attok":                                ("Attock",        "Attock", "city"),
+}
+
+# Shapefile point name -> CSV station name, for names too different to match automatically
+SHP_ALIASES = {
+    "Deputy Commissioner Office, Attock": "Attok",
+    "Deputy Commissioner Office, MB Din": "Mandi Bahauddin",
+    "Deputy Commissioner Office, RY Khan": "DC Office Rahim Yar Khan",
 }
 
 # Public message (page 1), one per AQI band: (public items, sensitive-group items)
@@ -386,7 +416,7 @@ def registry_lookup(name: str):
     return max(hits, key=lambda v: len(v[0])) if hits else None
 
 
-def read_dashboard_csv(path: Path, data_date: dt.date | None, keep_zero: bool):
+def read_dashboard_csv(path: Path, data_date: dt.date | None):
     raw = pd.read_csv(path, encoding="utf-8-sig", dtype=str)
     tcol = raw.columns[0]
     t = pd.to_datetime(raw[tcol], errors="coerce", format="mixed")
@@ -408,8 +438,6 @@ def read_dashboard_csv(path: Path, data_date: dt.date | None, keep_zero: bool):
         dcol = f"{name} • Dominant Pollutant"
         dom = raw[dcol].fillna("").str.strip() if dcol in raw else pd.Series("", index=raw.index)
         valid = aqi.notna()
-        if not keep_zero:
-            valid &= ~((aqi == 0) & (dom == ""))
         hours = pd.DataFrame({"time": raw["__t"].values, "aqi": aqi.values,
                               "dom": dom.values, "valid": valid.values})
         reg = registry_lookup(name)
@@ -448,15 +476,12 @@ def isolated_aqi_spikes(hours: pd.DataFrame) -> list[int]:
     return spikes
 
 
-def compute_station(s: Station, min_hours: int):
-    s.hours["spike"] = False
+def compute_station(s: Station):
     spike_indices = isolated_aqi_spikes(s.hours)
-    if spike_indices:
-        s.hours.loc[spike_indices, "spike"] = True
-        s.hours.loc[spike_indices, "valid"] = False
+    s.hours["spike"] = s.hours.index.isin(spike_indices)
     v = s.hours[s.hours.valid]
     s.n_valid = len(v)
-    s.sufficient = s.n_valid >= min_hours
+    s.sufficient = s.n_valid >= MIN_VALID_HOURS
     c = Counter(d for d in v.dom if d)
     s.dom_counts = dict(c)
     if s.n_valid:
@@ -479,10 +504,10 @@ class District:
 
 
 def compute_districts(stations):
-    groups: dict[str, list[Station]] = {}
+    groups: dict[str, list[Station]] = {name: [] for name in PUNJAB_DISTRICTS}   # all 36, even without stations
     for s in stations:
-        if s.district and s.role != "transboundary":
-            groups.setdefault(s.district, []).append(s)
+        if s.district in groups and (s.role != "transboundary" or s.label in COUNTED_IN_DISTRICT):
+            groups[s.district].append(s)
     districts = []
     for name, sts in groups.items():
         d = District(name, sts)
@@ -506,7 +531,7 @@ def compute_districts(stations):
     return ranked + nodata
 
 
-def qa_flags(stations, min_hours):
+def qa_flags(stations):
     rows = []
     for s in stations:
         h = s.hours
@@ -516,14 +541,14 @@ def qa_flags(stations, min_hours):
             rows.append((s.name, s.district, "", "Missing hours", f"{max(24 - len(h), 0) + n_missing} of 24 hours have no AQI"))
         if n_zero:
             rows.append((s.name, s.district, "", "AQI = 0, no pollutant",
-                         f"{n_zero} hour(s) {'excluded' if DROP_ZERO_AQI else 'counted as 0'}"))
+                         f"{n_zero} hour(s) retained; not filtered from AQI calculations"))
         if not s.sufficient:
             rows.append((s.name, s.district, "", "Insufficient data",
-                         f"{s.n_valid} valid hours after spike filtering (< {min_hours}); station excluded from report"))
+                         f"{s.n_valid} hourly AQI values (< {MIN_VALID_HOURS}); station omitted from report"))
         for _, r in h[h.spike].iterrows():
             ts = pd.Timestamp(r.time).strftime("%d.%m.%Y %H:%M")
-            rows.append((s.name, s.district, ts, "Isolated AQI peak excluded",
-                         f"AQI {r.aqi:.0f} ({r.dom or 'no pollutant'}); more than {QA_SPIKE_JUMP} above comparison hours"))
+            rows.append((s.name, s.district, ts, "Isolated AQI peak",
+                         f"AQI {r.aqi:.0f} ({r.dom or 'no pollutant'}); included in AQI calculations"))
         v = h[h.valid].reset_index(drop=True)
         for i, r in v.iterrows():
             ts = pd.Timestamp(r.time).strftime("%d.%m.%Y %H:%M")
@@ -893,8 +918,11 @@ def _plot_lines(ax, geoms, **kw):
                 _plot_lines(ax, part.geoms, **kw)
 
 
+LAHORE_MAP_SIZE_MM = (196, 145)    # landscape AQMS map; must match .p2 .mapimg in the CSS
+
+
 def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
-               out_png: Path, data_date: dt.date, basemap: str, log, size_mm=(196, 150),
+               out_png: Path, data_date: dt.date, basemap: str, log, size_mm=LAHORE_MAP_SIZE_MM,
                basemap_file: Path | None = None, refresh_basemap: bool = False):
     import matplotlib
     matplotlib.use("Agg")
@@ -908,7 +936,7 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
     font = _pick_font()
     plt.rcParams["font.family"] = font
 
-    pts = [s for s in stations if s.district == focus and s.x is not None]
+    pts = [s for s in stations if in_focus(s, focus) and s.x is not None]
     if not pts:
         log(f"  ! No located stations for {focus}; map skipped")
         return None
@@ -922,8 +950,8 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
 
     # extent: tight fit on all stations incl. transboundary (+2% padding), matched to the figure aspect ratio
     cx, cy = (xs.min() + xs.max()) / 2, (ys.min() + ys.max()) / 2
-    w = (xs.max() - xs.min()) * 1.04 + 800
-    h = (ys.max() - ys.min()) * 1.04 + 800
+    w = (xs.max() - xs.min()) * 1.18 + 1500      # margin keeps edge stations (e.g. Wagha) clear of the corner panels
+    h = (ys.max() - ys.min()) * 1.18 + 1500
     if w / h > W / H:
         h = w * H / W
     else:
@@ -957,6 +985,7 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
 
     # district boundaries + focus highlight
     dg_all, name_col = None, None
+    focus_geom, border_geom = None, None
     if districts_shp and Path(districts_shp).exists():
         dg = gpd.read_file(districts_shp)
         if dg.crs is None:
@@ -974,6 +1003,7 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
             fd = dg[dg[name_col].astype(str).map(canonical_district) == focus]
             if len(fd):
                 geom = fd.union_all() if hasattr(fd, "union_all") else fd.unary_union
+                focus_geom = geom
                 mask = extent.difference(geom)
                 gpd.GeoSeries([mask], crs=3857).plot(ax=ax, color="white", alpha=0.45 if online else 0.6, lw=0, zorder=3)
                 _plot_lines(ax, [geom], color="white", lw=4.5, alpha=0.9, zorder=4)
@@ -986,11 +1016,7 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
         if len(bd):
             _plot_lines(ax, bd.geometry, color="white", lw=3.2, alpha=0.8, zorder=4)
             _plot_lines(ax, bd.geometry, color="#8B1E1E", lw=1.3, ls=(0, (6, 2, 1, 2)), zorder=4)
-            if not online:
-                ax.text(0.97, 0.52, "I N D I A", transform=ax.transAxes, ha="right", va="center",
-                        fontsize=11, color="#9AA39A", fontweight="bold", zorder=2)
-                ax.text(0.03, 0.52, "P A K I S T A N", transform=ax.transAxes, ha="left", va="center",
-                        fontsize=11, color="#9AA39A", fontweight="bold", zorder=2)
+            border_geom = bd.union_all() if hasattr(bd, "union_all") else bd.unary_union
 
     # geopandas may have changed limits/aspect: lock the extent again
     ax.set_aspect("auto"); ax.set_xlim(x0, x1); ax.set_ylim(y0, y1)
@@ -1024,16 +1050,58 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
         return ax.transData.transform((x, y))
     pix = np.array([to_disp(s.x, s.y) for s in pts])
     fw, fh = fig.bbox.width, fig.bbox.height
-    corners = {"tl": (0, fh * 0.55, fw * 0.30, fh), "tr": (fw * 0.70, fh * 0.55, fw, fh),
-               "bl": (0, 0, fw * 0.30, fh * 0.45), "br": (fw * 0.70, 0, fw, fh * 0.45)}
-    occ = {k: int(((pix[:, 0] > a) & (pix[:, 0] < c) & (pix[:, 1] > b) & (pix[:, 1] < d)).sum())
-           for k, (a, b, c, d) in corners.items()}
-    order = sorted(corners, key=lambda k: (occ[k], ["tl", "bl", "tr", "br"].index(k)))
-    leg_corner, arrow_corner = order[0], order[1]
+    lw_, lh_ = 46 / size_mm[0], 60 / size_mm[1]          # legend panel: 46 x 60 mm whatever the map shape
+    iw, ih = 40 / size_mm[0], 54 / size_mm[1]            # locator inset: 40 x 54 mm
 
-    lw_, lh_ = 0.235, 0.40
-    lx = 0.012 if leg_corner[1] == "l" else 1 - lw_ - 0.012
-    ly = 1 - lh_ - 0.015 if leg_corner[0] == "t" else 0.06
+    def _panel(c, wf, hf, bottom):
+        x = 0.012 * fw if c[1] == "l" else fw * (1 - wf - 0.012)
+        y = fh * (1 - hf - 0.015) if c[0] == "t" else fh * bottom
+        return (x, y, x + wf * fw, y + hf * fh)
+
+    def _arrow_panel(c):
+        axf = 0.955 if c[1] == "r" else 0.045
+        ayf = 0.90 if c[0] == "t" else 0.16
+        return ((axf - 0.03) * fw, (ayf - 0.03) * fh, (axf + 0.03) * fw, (ayf + 0.10) * fh)
+
+    def _stations_under(rect, pad):
+        r0, r1, r2, r3 = rect
+        return int(((pix[:, 0] > r0 - pad) & (pix[:, 0] < r2 + pad) & (pix[:, 1] > r1 - pad) & (pix[:, 1] < r3 + pad)).sum())
+
+    names_ = ["tl", "bl", "tr", "br"]
+    has_locator = dg_all is not None and name_col
+    if has_locator:
+        ix, iy = 1 - iw - 0.012, 1 - ih - 0.015
+        inset_rect = (ix * fw, iy * fh, (ix + iw) * fw, (iy + ih) * fh)
+        best_asg = None
+        for leg_corner_ in names_:
+            lx = 0.012 if leg_corner_[1] == "l" else 1 - lw_ - 0.012
+            ly = 1 - lh_ - 0.015 if leg_corner_[0] == "t" else 0.06
+            leg_rect = (lx * fw, ly * fh, (lx + lw_) * fw, (ly + lh_) * fh)
+            for arrow_corner in names_:
+                arrow_rect = _arrow_panel(arrow_corner)
+                rects = [leg_rect, inset_rect, arrow_rect]
+                cost = sum(10000 * _stations_under(r, 15) + 300 * _stations_under(r, 40) for r in rects)
+                for first, second in ((leg_rect, inset_rect), (leg_rect, arrow_rect), (inset_rect, arrow_rect)):
+                    overlap_w = max(0, min(first[2], second[2]) - max(first[0], second[0]))
+                    overlap_h = max(0, min(first[3], second[3]) - max(first[1], second[1]))
+                    cost += 10000 * overlap_w * overlap_h
+                cost += 10 * names_.index(leg_corner_) + 3 * names_.index(arrow_corner)
+                if best_asg is None or cost < best_asg[0]:
+                    best_asg = (cost, leg_corner_, arrow_corner, lx, ly)
+        _, leg_corner, arrow_corner, lx, ly = best_asg
+    else:
+        import itertools
+        best_asg = None
+        for lc_, ic_, ac_ in itertools.permutations(names_, 3):
+            rects_ = [(_panel(lc_, lw_, lh_, 0.06), 70), (_panel(ic_, iw, ih, 0.075), 70), (_arrow_panel(ac_), 40)]
+            cost_ = sum(10000 * _stations_under(r_, 15) + 300 * _stations_under(r_, pad_) for r_, pad_ in rects_)
+            cost_ += 10 * names_.index(lc_) + 3 * names_.index(ic_) + 3 * ["tr", "tl", "br", "bl"].index(ac_) + (500 if lc_ == "br" else 0)
+            if best_asg is None or cost_ < best_asg[0]:
+                best_asg = (cost_, lc_, ic_, ac_)
+        _, leg_corner, ins_corner, arrow_corner = best_asg
+        lx = 0.012 if leg_corner[1] == "l" else 1 - lw_ - 0.012
+        ly = 1 - lh_ - 0.015 if leg_corner[0] == "t" else 0.06
+
     lax = fig.add_axes([lx, ly, lw_, lh_]); lax.set_xlim(0, 1); lax.set_ylim(0, 1); lax.set_axis_off()
     lax.add_patch(FancyBboxPatch((0.02, 0.02), 0.96, 0.96, boxstyle="round,pad=0,rounding_size=0.04",
                                  facecolor="white", edgecolor="#9AA5AE", lw=0.8, alpha=0.94))
@@ -1056,24 +1124,37 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
     leg_box = lax.get_window_extent(R)
 
 
-    # locator inset (Punjab districts, focus district highlighted) in the third free corner
-    if dg_all is not None and name_col:
-        ic = order[2]
-        iw, ih = 0.17, 0.30
-        ix = 0.012 if ic[1] == "l" else 1 - iw - 0.012
-        iy = 1 - ih - 0.015 if ic[0] == "t" else 0.075
+    # Punjab locator inset over the India-side map area, with Lahore highlighted
+    if has_locator:
         iax = fig.add_axes([ix, iy, iw, ih]); iax.set_axis_off()
+        iax.set_zorder(10)
+        iax.patch.set_facecolor("white")
         dg_all.plot(ax=iax, facecolor="#F4F6F2", edgecolor="#A7B0A4", lw=0.25)
         foc = dg_all[dg_all[name_col].astype(str).map(canonical_district) == focus]
         if len(foc):
-            foc.plot(ax=iax, facecolor="#1F4E79", edgecolor="#1F4E79", lw=0.4)
+            foc.plot(ax=iax, facecolor="#1F4E79", edgecolor="#12334F", lw=0.65)
+            focus_geom_inset = (foc.geometry.union_all() if hasattr(foc.geometry, "union_all")
+                                else foc.geometry.unary_union)
+            focus_point = focus_geom_inset.representative_point()
+            iax.scatter([focus_point.x], [focus_point.y], s=22, color="#E03C31", edgecolor="white",
+                        linewidth=1.0, zorder=6)
         iax.add_patch(Rectangle((x0, y0), w, h, fill=False, ec="#C0392B", lw=0.9))
         bx0, by0, bx1, by1 = dg_all.total_bounds
         pad = 0.04 * max(bx1 - bx0, by1 - by0)
         iax.set_xlim(bx0 - pad, bx1 + pad); iax.set_ylim(by0 - pad, by1 + pad); iax.set_aspect("equal")
-        iax.add_patch(FancyBboxPatch((0, 0), 1, 1, transform=iax.transAxes, boxstyle="round,pad=0,rounding_size=0.03",
-                                     fc="white", ec="#9AA5AE", lw=0.8, alpha=0.92, zorder=-1, clip_on=False))
-        iax.text(0.5, 0.02, "Punjab", transform=iax.transAxes, ha="center", va="bottom", fontsize=5.5, color="#555")
+        iax.add_patch(Rectangle((0, 0.86), 1, 0.14, transform=iax.transAxes, facecolor="white",
+                                edgecolor="none", alpha=0.94, zorder=7))
+        iax.text(0.5, 0.93, "PUNJAB", transform=iax.transAxes, ha="center", va="center",
+                 fontsize=7, fontweight="bold", color="#1F2D3A", zorder=8)
+        iax.add_patch(Rectangle((0, 0), 1, 0.13, transform=iax.transAxes, facecolor="white",
+                                edgecolor="none", alpha=0.94, zorder=7))
+        iax.scatter([0.18], [0.065], transform=iax.transAxes, s=19, color="#E03C31",
+                    edgecolor="white", linewidth=0.8, zorder=8)
+        iax.text(0.29, 0.065, "Lahore focus", transform=iax.transAxes, ha="left", va="center",
+                 fontsize=5.8, color="#1F2D3A", zorder=8)
+        iax.add_patch(FancyBboxPatch((0.01, 0.01), 0.98, 0.98, transform=iax.transAxes,
+                                     boxstyle="round,pad=0,rounding_size=0.03", fc="none",
+                                     ec="#526273", lw=1.0, zorder=9, clip_on=False))
         fig.canvas.draw()
         inset_box = iax.get_window_extent(R)
     else:
@@ -1103,7 +1184,7 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
     sb_box = ax.transData.transform([[sx - 500, sy - 300], [sx + L + 1500, sy + h * 0.05]])
 
     # title tag + attribution
-    tag = ax.text(0.985 if sb_left else 0.015, 0.03, f"AQMS Map — {focus}  |  24-h AQI {data_date:%d.%m.%Y}",
+    tag = ax.text(0.985 if sb_left else 0.015, 0.042, f"AQMS Map — {focus}  |  24-h AQI {data_date:%d.%m.%Y}",
                   transform=ax.transAxes, ha="right" if sb_left else "left", va="bottom", fontsize=6.6,
                   fontweight="bold", color="#1F2D3A", zorder=12,
                   bbox=dict(boxstyle="round,pad=0.35", fc="white", ec="#1F2D3A", lw=0.8))
@@ -1127,7 +1208,98 @@ def render_map(stations, focus: str, extra_points, districts_shp: Path | None,
         t.remove()
         return e.width, e.height
 
+    # ---- context labels: adjoining districts and INDIA, set in the free space around the stations ----
+    ctx_boxes = []
+    fixed = [leg_box, tag_box, Bbox(arrow_box), Bbox(sb_box)] + ([inset_box] if inset_box is not None else [])
+    axpad = ax.get_window_extent(R).padded(-8)
+
+    def _ov(b1, b2):
+        return max(0, min(b1.x1, b2.x1) - max(b1.x0, b2.x0)) * max(0, min(b1.y1, b2.y1) - max(b1.y0, b2.y0))
+
+    def spaced(txt):
+        return "   ".join(" ".join(word) for word in txt.split())
+
+    def place_label(txt, cands, fs, rot=0, color="#56626E", anchor=None):
+        """Write `txt` at the candidate (data x, y) that clears stations, panels and other labels."""
+        t = ax.text(0, 0, txt, fontsize=fs, fontweight="bold", fontstyle="italic", rotation=rot, ha="center",
+                    va="center", color=color, zorder=5, path_effects=[pe.withStroke(linewidth=2.4, foreground="white")])
+        e = t.get_window_extent(R)
+        tw, th = e.width, e.height
+        inv = ax.transData.inverted()
+        lines_ = ([focus_geom.boundary] if focus_geom is not None else []) + ([border_geom] if border_geom is not None else [])
+        best = None
+        for x, y in cands:
+            px_, py_ = to_disp(x, y)
+            b = Bbox([[px_ - tw / 2 - 4, py_ - th / 2 - 4], [px_ + tw / 2 + 4, py_ + th / 2 + 4]])
+            if not (axpad.x0 <= b.x0 and b.x1 <= axpad.x1 and axpad.y0 <= b.y0 and b.y1 <= axpad.y1):
+                continue
+            cost = 10 * sum(_ov(b, o) for o in fixed + ctx_boxes)
+            (bx_a, by_a), (bx_b, by_b) = inv.transform((b.x0, b.y0)), inv.transform((b.x1, b.y1))
+            bpoly = box(min(bx_a, bx_b), min(by_a, by_b), max(bx_a, bx_b), max(by_a, by_b))
+            cost += 4000 * sum(1 for g in lines_ if bpoly.intersects(g))      # never write across a boundary line
+            if anchor is not None:
+                ax_pt = to_disp(*anchor)
+                cost += 1.5 * math.hypot(px_ - ax_pt[0], py_ - ax_pt[1])
+            for sx_, sy_ in pix:                              # keep clear of every station and its call-out room
+                dx = max(b.x0 - sx_, 0, sx_ - b.x1); dy = max(b.y0 - sy_, 0, sy_ - b.y1)
+                cost += max(0.0, 110 - math.hypot(dx, dy)) ** 2
+            if best is None or cost < best[0]:
+                best = (cost, x, y, b)
+        if best is None:
+            t.remove()
+            return False
+        t.set_position((best[1], best[2]))
+        ctx_boxes.append(best[3])
+        return True
+
+    if dg_all is not None and name_col and focus_geom is not None:
+        from shapely.geometry import Point
+        for _, r in dg_all[dg_all.geometry.intersects(focus_geom.buffer(500))].iterrows():
+            nm = canonical_district(str(r[name_col])) or str(r[name_col])
+            if nm == focus or nm in {"Kasur", "Nankana Sahib"}:
+                continue
+            vis = r.geometry.intersection(extent)
+            part = None if vis.is_empty else (max(vis.geoms, key=lambda g: g.area) if hasattr(vis, "geoms") else vis)
+            if part is None or part.area < 0.02 * extent.area:
+                rp = r.geometry.representative_point()                  # outside the frame: name it at the frame edge
+                ddx, ddy = (rp.x - cx) / w, (rp.y - cy) / h
+                if abs(ddy) >= abs(ddx):
+                    word = "north" if ddy > 0 else "south"
+                    yy_ = (y1 - 0.045 * h, y1 - 0.075 * h) if ddy > 0 else (y0 + 0.075 * h, y0 + 0.105 * h)
+                    cands = [(x0 + f * w, yv) for yv in yy_ for f in np.linspace(0.12, 0.88, 17)]
+                    place_label(f"{spaced(nm.upper())}   ({word})", cands, 7.5)
+                else:
+                    word = "east" if ddx > 0 else "west"
+                    xx_ = (x1 - 0.035 * w, x1 - 0.07 * w) if ddx > 0 else (x0 + 0.035 * w, x0 + 0.07 * w)
+                    cands = [(xv, y0 + f * h) for xv in xx_ for f in np.linspace(0.12, 0.88, 17)]
+                    place_label(f"{spaced(nm.upper())}   ({word})", cands, 7.5, rot=90)
+                continue
+            inner = part.buffer(-0.025 * min(w, h))
+            inner = part if inner.is_empty else inner
+            mnx, mny, mxx, mxy = inner.bounds
+            grid = [Point(mnx + (i + 0.5) * (mxx - mnx) / 16, mny + (j + 0.5) * (mxy - mny) / 16)
+                    for i in range(16) for j in range(16)]
+            rpt = part.representative_point()
+            place_label(spaced(nm.upper()), [(q.x, q.y) for q in grid if inner.contains(q)], 7.5, anchor=(rpt.x, rpt.y))
+
+    if border_geom is not None:
+        from shapely.geometry import LineString
+        cands = []
+        for f in np.linspace(0.12, 0.88, 25):
+            yb = y0 + f * h
+            hit = LineString([(x0 - 10, yb), (x1 + 10, yb)]).intersection(border_geom)
+            xs_hit = [g.x for g in (hit.geoms if hasattr(hit, "geoms") else [hit]) if g.geom_type == "Point"]
+            if not xs_hit:
+                continue
+            xb = max(xs_hit)
+            for fr in (0.35, 0.5, 0.65):
+                if xb + (x1 - xb) * fr < x1 - 0.03 * w:
+                    cands.append((xb + (x1 - xb) * fr, yb))
+        cands += [(x1 - 0.05 * w, y0 + f * h) for f in np.linspace(0.2, 0.8, 13)]     # fallback: right margin
+        place_label(spaced("INDIA"), cands, 13, rot=90, color="#7A1F1F")
+
     obstacles = [leg_box, tag_box, Bbox(arrow_box), Bbox(sb_box)]
+    obstacles.extend(ctx_boxes)
     for ea in extra_artists:
         obstacles.append(ea.get_window_extent(R))
     if inset_box is not None:
@@ -1381,6 +1553,8 @@ def render_punjab_map(districts, districts_shp: Path | None, out_png: Path, data
 
     rows = []
     for _, r in dg.iterrows():
+        if r["_val"] is None or r["_val"] != r["_val"]:
+            continue                                  # no data: district stays grey, nothing is written on it
         g = r.geometry
         part = max(g.geoms, key=lambda p: p.area) if hasattr(g, "geoms") else g
         rows.append(dict(name=r["_name"], val=r["_val"], geom=part, fill=r["_fill"], area=part.area))
@@ -1581,7 +1755,7 @@ body { font-family: 'NotoSansLocal', Arial, sans-serif; color: #111 }
 .page { position: relative; overflow: hidden; break-after: page }
 .page:last-child { break-after: auto }
 .p1 { page: p1; width: 210mm; height: 297mm; padding: 7mm 8mm 5mm }
-.p2 { page: p2; width: 297mm; height: 210mm; padding: 6mm 8mm 5mm; font-family: 'Times New Roman', 'NotoSerifLocal', serif }
+.p2 { page: p2; width: 297mm; height: 210mm; padding: 5mm 8mm 4mm; font-family: 'Times New Roman', 'NotoSerifLocal', serif }
 
 /* ---------- page 1 ---------- */
 .hdr { display: flex; align-items: center; justify-content: space-between; background: #B9E2A6;
@@ -1628,32 +1802,40 @@ table.rk td.c.ur { font-family: 'Jameel Noori Nastaleeq', 'NotoNastaliqUrduLocal
 .foot { font-size: 8pt; margin-top: 2.5mm; padding-left: 4mm }
 .dir { text-align: center; color: #1E8B3C; font-weight: 700; font-size: 9pt; margin-top: 1.8mm }
 
-/* ---------- page 2 ---------- */
+/* ---------- focus-district AQMS map (physical page 3) ---------- */
 .h2 { display: flex; align-items: center; justify-content: space-between; height: 28mm }
 .h2 .lp { height: 25mm } .h2 .le { height: 25mm }
 .h2 .tb { text-align: center }
 .h2 .tbox { border: 0.5mm solid #111; padding: 1mm 10mm; font-size: 26pt; font-weight: 700; display: inline-block }
 .h2 .tbox small { font-size: 13pt }
 .h2 .upd { font-size: 14pt; font-weight: 700; margin-top: 2mm }
-.body2 { display: flex; gap: 3mm; margin-top: 3mm }
-.mapimg { width: 196mm; height: 150mm; border: 0.3mm solid #444 }
-table.st { border-collapse: collapse; width: 82mm; font-size: 9.6pt; height: 150mm }
+.body2 { display: flex; gap: 3mm; margin-top: 3mm; align-items: flex-start }
+.mapimg { width: 126mm; height: 214mm; border: 0.3mm solid #444; flex: none }
+table.st { border-collapse: collapse; width: 65mm; font-size: 8.6pt }
 table.st th, table.st td { border: 0.25mm solid #555; text-align: center; padding: 0 1mm }
-table.st th { background: #F8DCD2; height: 10.5mm; font-size: 10.5pt }
-table.st td { height: var(--rh, 9.4mm) }
-table.st td.a { font-weight: 700; font-size: 10.5pt; width: 11mm }
-table.st td.rk { font-weight: 700; width: 11mm }
-table.st tr.sec td { background: #F8DCD2; font-weight: 700; font-size: 10.5pt }
+table.st th { background: #F8DCD2; height: 10.5mm; font-size: 9pt }
+table.st td { height: var(--rh, 11.4mm) }
+table.st td.a { font-weight: 700; font-size: 9.5pt; width: 10mm }
+table.st td.rk { font-weight: 700; width: 9mm }
+table.st tr.sec td { background: #F8DCD2; font-weight: 700; font-size: 9pt }
 .tdot { display: inline-block; width: 4mm; height: 4mm; border-radius: 50%; background: #E03C31; color: #fff;
         font: 700 7pt/4mm Arial, sans-serif; text-align: center; vertical-align: middle; margin-right: 1mm }
 .foot2 { font-size: 8.5pt; margin-top: 3mm }
 .dir2 { text-align: center; color: #1E8B3C; font-weight: 700; font-size: 10pt; margin-top: 2mm; font-family: Arial, sans-serif }
 .ph { background: #eee }
 
-/* ---------- page 3 : Punjab district AQI map ---------- */
+/* ---------- Punjab district AQI map (physical page 2) ---------- */
 .p3 { page: p1; width: 210mm; height: 297mm; padding: 6mm 8mm 5mm; font-family: 'Times New Roman', 'NotoSerifLocal', serif }
-.p3 .h2 .tbox { font-size: 19pt; padding: 1mm 6mm }
-.p3 .h2 .tbox small { font-size: 11pt }
+.p2 .h2 .tbox, .p3 .h2 .tbox { font-size: 19pt; padding: 1mm 6mm }
+.p2 .h2 .tbox small, .p3 .h2 .tbox small { font-size: 11pt }
+.p2 .h2 { height: 25mm }
+.p2 .h2 .lp, .p2 .h2 .le { height: 22mm }
+.p2 .body2 { gap: 3mm; margin-top: 2mm }
+.p2 .mapimg { width: 196mm; height: 145mm }
+.p2 table.st { width: 80mm; font-size: 8pt }
+.p2 table.st th { height: 8mm; font-size: 8.2pt }
+.p2 .foot2 { margin-top: 2mm }
+.p2 .dir2 { margin-top: 1mm }
 .mapimg3 { display: block; width: 194mm; height: 220mm; margin-top: 3mm; border: 0.3mm solid #444 }
 """
 
@@ -1670,7 +1852,7 @@ def build_html(districts, punjab_avg, lahore, lahore_city, lahore_tb, map_png, d
             ur = DISTRICT_URDU.get(d.name, d.name)
             if d.value is None:
                 out.append(f'<tr><td class="r">{d.rank}.</td><td class="d ur">{esc(ur)}</td>'
-                           f'<td class="a" style="background:{NO_DATA_FILL}">–</td><td class="c ur">{UR["nodata"]}</td></tr>')
+                           f'<td class="a" style="background:{NO_DATA_FILL}"></td><td class="c"></td></tr>')
             else:
                 out.append(f'<tr><td class="r">{d.rank}.</td><td class="d ur">{esc(ur)}</td>'
                            f'<td class="a" style="background:{band_fill(d.value)};color:{band_text(d.value)}">{d.value}</td>'
@@ -1737,8 +1919,8 @@ def build_html(districts, punjab_avg, lahore, lahore_city, lahore_tb, map_png, d
     def st_rows(sts, start=1):
         out = []
         for i, s in enumerate(sts, start):
-            val = "–" if s.value is None else s.value
-            dom = esc(s.dominant) if s.value is not None else "No data"
+            val = "" if s.value is None else s.value
+            dom = esc(s.dominant) if s.value is not None else ""
             out.append(f'<tr><td class="rk">{i:02d}</td><td>{esc(s.label)}</td>'
                        f'<td class="a" style="background:{band_fill(s.value)};color:{band_text(s.value)}">{val}</td>'
                        f'<td>{dom}</td></tr>')
@@ -1749,6 +1931,8 @@ def build_html(districts, punjab_avg, lahore, lahore_city, lahore_tb, map_png, d
         n_ok = sum(1 for s in lahore_city if s.sufficient)
         tb_rows = (f'<tr class="sec"><td colspan="4"><span class="tdot">T</span>Transboundary AQMS</td></tr>'
                    + st_rows(lahore_tb)) if lahore_tb else ""
+        table_rows = len(lahore_city) + (len(lahore_tb) + 1 if lahore_tb else 0)
+        station_row_height = (LAHORE_MAP_SIZE_MM[1] - 8) / max(table_rows, 1)
         mp = (f'<img class="mapimg" src="{map_png.resolve().as_uri()}">' if map_png
               else '<div class="mapimg ph"></div>')
         page2 = f"""
@@ -1763,7 +1947,7 @@ def build_html(districts, punjab_avg, lahore, lahore_city, lahore_tb, map_png, d
   </div>
   <div class="body2">
     {mp}
-    <table class="st">
+    <table class="st" style="--rh:{station_row_height:.2f}mm">
       <thead><tr><th>Rank</th><th>Location</th><th>AQI</th><th>Dominant Pollutant</th></tr></thead>
       <tbody>{st_rows(lahore_city)}{tb_rows}</tbody>
     </table>
@@ -1822,6 +2006,39 @@ def html_to_pdf(html_path: Path, pdf_path: Path, log):
     return True
 
 
+def write_docx_from_pdf(pdf_path: Path, docx_path: Path, dpi: int = 300):
+    """Embed each rendered PDF page as a full-page image so Word matches the PDF layout."""
+    import tempfile
+    import pymupdf
+    from docx import Document
+    from docx.enum.section import WD_ORIENT, WD_SECTION
+    from docx.shared import Mm, Pt
+
+    doc = Document()
+    with tempfile.TemporaryDirectory(prefix="aqi_pdf_pages_") as temp_dir:
+        with pymupdf.open(pdf_path) as pdf:
+            for index, page in enumerate(pdf):
+                width_mm = page.rect.width * 25.4 / 72
+                height_mm = page.rect.height * 25.4 / 72
+                section = doc.sections[0] if index == 0 else doc.add_section(WD_SECTION.NEW_PAGE)
+                section.orientation = WD_ORIENT.LANDSCAPE if width_mm > height_mm else WD_ORIENT.PORTRAIT
+                section.page_width = Mm(width_mm)
+                section.page_height = Mm(height_mm)
+                section.left_margin = section.right_margin = Mm(0)
+                section.top_margin = section.bottom_margin = Mm(0)
+                section.header_distance = section.footer_distance = Mm(0)
+
+                page_image = Path(temp_dir) / f"page_{index + 1}.png"
+                page.get_pixmap(matrix=pymupdf.Matrix(dpi / 72, dpi / 72), alpha=False).save(page_image)
+                paragraph = doc.add_paragraph()
+                paragraph.paragraph_format.space_before = Pt(0)
+                paragraph.paragraph_format.space_after = Pt(0)
+                paragraph.paragraph_format.line_spacing = Pt(1)
+                paragraph.add_run().add_picture(str(page_image), width=Mm(width_mm), height=Mm(height_mm))
+
+    doc.save(str(docx_path))
+
+
 # =============================================================================
 # 6. EXCEL SUMMARY
 # =============================================================================
@@ -1839,8 +2056,9 @@ def write_excel(path, districts, stations, qa, match_table, punjab_avg):
                   Max_hourly_AQI=s.max_aqi, Max_time=None if s.max_time is None else pd.Timestamp(s.max_time).strftime("%H:%M"),
                   Dominant=s.dominant, Dominant_counts=", ".join(f"{k}:{v}" for k, v in s.dom_counts.items()),
                   Located_on_map=s.x is not None) for s in stations]
-    hourly = pd.concat([s.hours.assign(Station=s.name) for s in stations])[["Station", "time", "aqi", "dom", "valid"]]
-    hourly.columns = ["Station", "Time", "AQI", "Dominant", "Valid"]
+    hourly = pd.concat([s.hours.assign(Station=s.name) for s in stations])[
+        ["Station", "time", "aqi", "dom", "valid", "spike"]]
+    hourly.columns = ["Station", "Time", "AQI", "Dominant", "Valid", "Isolated_AQI_Peak_Flag"]
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         pd.DataFrame(drows).to_excel(xw, sheet_name="Districts", index=False)
         pd.DataFrame(srows).to_excel(xw, sheet_name="Stations", index=False)
@@ -1853,6 +2071,414 @@ def write_excel(path, districts, stations, qa, match_table, punjab_avg):
                 width = max(len(str(c.value)) if c.value is not None else 0 for c in col)
                 ws.column_dimensions[col[0].column_letter].width = min(max(width + 2, 8), 60)
             ws.freeze_panes = "A2"
+
+
+# =============================================================================
+# 7. WORD REPORT
+# =============================================================================
+
+def render_svg_pngs(svgs, out_dir, log=print):
+    """Draw small SVGs (gauge, face, icons) to transparent PNGs with the same Chromium that makes the PDF.
+    svgs = {name: (svg_markup, width_px, height_px)}  ->  {name: Path}.  Returns {} if Chromium is unavailable."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return {}
+    done = {}
+    try:
+        with sync_playwright() as p:
+            exe = os.environ.get("CHROMIUM_PATH")
+            try:
+                browser = p.chromium.launch(executable_path=exe) if exe else p.chromium.launch()
+            except Exception:
+                alt = "/opt/pw-browsers/chromium"
+                if not Path(alt).exists():
+                    return {}
+                browser = p.chromium.launch(executable_path=alt)
+            page = browser.new_page(device_scale_factor=4)
+            for name, (svg, w, h) in svgs.items():
+                svg = svg.replace("<svg ", f'<svg width="{w}" height="{h}" ', 1)
+                page.set_content(f'<html><body style="margin:0;background:transparent">{svg}</body></html>')
+                png = Path(out_dir) / f"{name}.png"
+                page.locator("svg").first.screenshot(path=str(png), omit_background=True)
+                done[name] = png
+            browser.close()
+    except Exception as exc:
+        log(f"  ! could not draw the icons for the Word report ({exc}); the Word file is made without them")
+    return done
+
+
+def embed_fonts(docx_path, families):
+    """Embed TrueType fonts in the .docx (fonts/<file>.ttf) so Urdu shows in Nastaliq on any PC.
+    families = {"Noto Sans": ("NotoSans-400.ttf", "NotoSans-700.ttf"), ...}  (regular, bold)"""
+    import shutil
+    import uuid
+    import zipfile
+    from lxml import etree
+    W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    wq = lambda t: f"{{{W}}}{t}"
+    tmp = Path(str(docx_path) + ".tmp")
+    with zipfile.ZipFile(docx_path) as zin:
+        files = {n: zin.read(n) for n in zin.namelist()}
+    ft = etree.fromstring(files["word/fontTable.xml"])
+    rels, new_parts, n = [], {}, 0
+    for fam, (reg, bold) in families.items():
+        old = [f for f in ft.findall(wq("font")) if f.get(wq("name")) == fam]
+        for f in old:
+            ft.remove(f)
+        font = etree.SubElement(ft, wq("font")); font.set(wq("name"), fam)
+        etree.SubElement(font, wq("charset")).set(wq("val"), "00")
+        etree.SubElement(font, wq("family")).set(wq("val"), "auto")
+        etree.SubElement(font, wq("pitch")).set(wq("val"), "variable")
+        for tag, fname in (("embedRegular", reg), ("embedBold", bold)):
+            src = FONTS / fname
+            if not src.exists():
+                continue
+            n += 1
+            guid = str(uuid.uuid4()).upper()
+            key = bytes.fromhex(guid.replace("-", ""))[::-1]
+            data = bytearray(src.read_bytes())
+            for i in range(32):
+                data[i] ^= key[i % 16]
+            new_parts[f"word/fonts/font{n}.odttf"] = bytes(data)
+            rid = f"rIdFont{n}"
+            rels.append(f'<Relationship Id="{rid}" Type="{R}/font" Target="fonts/font{n}.odttf"/>')
+            el = etree.SubElement(font, wq(tag))
+            el.set(f"{{{R}}}id", rid); el.set(wq("fontKey"), "{" + guid + "}")
+    if not n:
+        return
+    files["word/fontTable.xml"] = etree.tostring(ft, xml_declaration=True, encoding="UTF-8", standalone=True)
+    files["word/_rels/fontTable.xml.rels"] = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + "".join(rels) + "</Relationships>"
+    ).encode("utf-8")
+    ct = files["[Content_Types].xml"].decode("utf-8")
+    if 'Extension="odttf"' not in ct:
+        ct = ct.replace("<Default ", '<Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/><Default ', 1)
+    files["[Content_Types].xml"] = ct.encode("utf-8")
+    st = etree.fromstring(files["word/settings.xml"])
+    if st.find(wq("embedTrueTypeFonts")) is None:
+        el = etree.Element(wq("embedTrueTypeFonts"))
+        zoom = st.find(wq("zoom"))
+        if zoom is not None:
+            zoom.addnext(el)
+        else:
+            st.insert(0, el)
+    files["word/settings.xml"] = etree.tostring(st, xml_declaration=True, encoding="UTF-8", standalone=True)
+    files.update(new_parts)
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
+        for name, content in files.items():
+            zout.writestr(name, content)
+    shutil.move(str(tmp), str(docx_path))
+
+
+def write_docx(path, districts, punjab_avg, focus_d, city, tb, map_png, punjab_map_png, data_date, report_date, focus):
+    """Legacy editable layout builder; final report output uses write_docx_from_pdf for visual parity."""
+    import tempfile
+    from docx import Document
+    from docx.enum.section import WD_ORIENT, WD_SECTION
+    from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ROW_HEIGHT_RULE
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Mm, Pt, RGBColor
+
+    CENTER, LEFT, RIGHT = WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.RIGHT
+    SANS, SERIF, URDU_FONT = "Noto Sans", "Noto Serif", "Noto Nastaliq Urdu"
+    GREEN_HDR, PINK_BAND, BLUE_PILL, PINK_HEAD = "#B9E2A6", "#F8DCD2", "#CFE6F7", "#F8DCD2"
+    tmpdir = Path(tempfile.mkdtemp(prefix="aqi_docx_"))
+
+    doc = Document()
+    normal = doc.styles["Normal"]
+    normal.font.name = SANS
+    normal.font.size = Pt(10)
+    normal.paragraph_format.space_after = Pt(0)
+    normal.element.get_or_add_rPr().find(qn("w:rFonts")).set(qn("w:cs"), URDU_FONT)
+
+    # ---------------------------------------------------------------- pictures drawn from the PDF's own SVGs
+    bi = band_index(punjab_avg)
+    adv_name, adv_secs = advisory_sections(bi)
+    svgs = {"gauge": (svg_gauge(punjab_avg), 120, 64)}
+    if bi is not None:
+        svgs["face"] = (svg_face(bi), 24, 24)
+    for _h, items in adv_secs:
+        for key, _t in items:
+            svgs.setdefault(f"ic_{key}", (svg_icon(key), 24, 24))
+    pics = render_svg_pngs(svgs, tmpdir)
+
+    # ---------------------------------------------------------------- helpers
+    def new_page(first, landscape=False):
+        sec = doc.sections[0] if first else doc.add_section(WD_SECTION.NEW_PAGE)
+        w, h = (297, 210) if landscape else (210, 297)
+        sec.page_width, sec.page_height = Mm(w), Mm(h)
+        sec.orientation = WD_ORIENT.LANDSCAPE if landscape else WD_ORIENT.PORTRAIT
+        sec.left_margin = sec.right_margin = Mm(8)
+        sec.top_margin = sec.bottom_margin = Mm(7)
+
+    def shade(cell, fill):
+        tcPr = cell._tc.get_or_add_tcPr()
+        for old in tcPr.findall(qn("w:shd")):
+            tcPr.remove(old)
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear"); shd.set(qn("w:color"), "auto"); shd.set(qn("w:fill"), fill.lstrip("#"))
+        tcPr.append(shd)
+
+    def valign(cell):
+        tcPr = cell._tc.get_or_add_tcPr()
+        v = OxmlElement("w:vAlign"); v.set(qn("w:val"), "center"); tcPr.append(v)
+
+    def borders(table, color="#9A9A9A", sz=4):
+        tblPr = table._tbl.tblPr
+        b = OxmlElement("w:tblBorders")
+        for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+            e = OxmlElement(f"w:{edge}")
+            e.set(qn("w:val"), "single"); e.set(qn("w:sz"), str(sz)); e.set(qn("w:space"), "0"); e.set(qn("w:color"), color.lstrip("#"))
+            b.append(e)
+        tblPr.append(b)
+
+    def widths(table, mms):
+        table.autofit = False
+        for row in table.rows:
+            for c, w in zip(row.cells, mms):
+                c.width = Mm(w)
+
+    def row_h(row, mm):
+        row.height = Mm(mm)
+        row.height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
+
+    def run(par, text, size=9, bold=False, color="#000000", urdu=False, serif=False):
+        r = par.add_run(str(text))
+        r.bold = bold
+        r.font.size = Pt(size)
+        r.font.color.rgb = RGBColor.from_string(color.lstrip("#").upper())
+        if serif:
+            r.font.name = SERIF
+        if urdu:
+            rpr = r._r.get_or_add_rPr()
+            fonts = rpr.find(qn("w:rFonts"))
+            if fonts is None:
+                fonts = OxmlElement("w:rFonts"); rpr.insert(0, fonts)
+            fonts.set(qn("w:cs"), URDU_FONT)
+            rpr.append(OxmlElement("w:rtl"))
+            szcs = OxmlElement("w:szCs"); szcs.set(qn("w:val"), str(int(size * 2))); rpr.append(szcs)
+            if bold:
+                rpr.append(OxmlElement("w:bCs"))
+        return r
+
+    def put(cell, text, size=9, bold=False, fill=None, color="#000000", align=CENTER, urdu=False, serif=False,
+            para=None, line=None):
+        """Write text into a cell (its first paragraph, or `para`). An empty text writes nothing."""
+        if para is None:
+            cell.text = ""
+            para = cell.paragraphs[0]
+        para.alignment = align
+        para.paragraph_format.space_before = para.paragraph_format.space_after = Pt(0)
+        if line:
+            para.paragraph_format.line_spacing = Pt(line)
+        if urdu:
+            para._p.get_or_add_pPr().append(OxmlElement("w:bidi"))
+        if text not in (None, ""):
+            run(para, text, size, bold, color, urdu, serif)
+        if fill:
+            shade(cell, fill)
+        valign(cell)
+        return para
+
+    def picture(par, path, height_mm=None, width_mm=None):
+        r = par.add_run()
+        if height_mm:
+            r.add_picture(str(path), height=Mm(height_mm))
+        else:
+            r.add_picture(str(path), width=Mm(width_mm))
+
+    def gap(pt=4):
+        par = doc.add_paragraph()
+        par.paragraph_format.line_spacing = Pt(pt)
+        run(par, "", 1)
+
+    def drop_lead(cell):
+        first = cell.paragraphs[0]._p
+        if first.getnext() is not None and first.getnext().tag == qn("w:tbl"):
+            first.getparent().remove(first)
+
+    span = f"{data_date:%d.%m.%Y}, 12:00AM to 11:00PM"
+    avg = "" if punjab_avg is None else round_half_up(punjab_avg)
+    n_d = sum(1 for d in districts if d.value is not None)
+    ur_date = f"{report_date.day} {URDU_MONTHS[report_date.month - 1]} {report_date.year}"
+
+    def footer():
+        par = doc.add_paragraph(); par.alignment = LEFT
+        par.paragraph_format.space_before = Pt(3)
+        run(par, f"AQI calculations is performed for last 24 hours ({span}).", 8.5)
+        par = doc.add_paragraph(); par.alignment = CENTER
+        par.paragraph_format.space_before = Pt(3)
+        run(par, DIRECTORATE, 10, True, "#1E8B3C")
+
+    # ================================================================ PAGE 1 : Urdu district ranking
+    new_page(True)
+    hdr = doc.add_table(rows=1, cols=3); hdr.alignment = WD_TABLE_ALIGNMENT.CENTER
+    widths(hdr, [62, 84, 48]); row_h(hdr.rows[0], 26)
+    c0, c1, c2 = hdr.rows[0].cells
+    for c in (c0, c1, c2):
+        shade(c, GREEN_HDR); valign(c)
+    par = c0.paragraphs[0]; par.alignment = LEFT
+    for logo in (LOGO_PUNJAB, LOGO_EPA):
+        if logo.exists():
+            picture(par, logo, height_mm=19); run(par, "  ", 6)
+    put(c1, UR["title"], 16, True, GREEN_HDR, "#14304A", urdu=True, line=32)
+    put(c1, f"{ur_date}     {UR['last24']}", 11, True, None, "#000000", urdu=True, para=c1.add_paragraph(), line=22)
+    par = c2.paragraphs[0]; par.alignment = RIGHT
+    if LOGO_HELPLINE.exists():
+        picture(par, LOGO_HELPLINE, height_mm=19)
+    gap(5)
+
+    band = doc.add_table(rows=1, cols=4); band.alignment = WD_TABLE_ALIGNMENT.CENTER
+    widths(band, [62, 32, 36, 64]); row_h(band.rows[0], 17)
+    b0, b1, b2, b3 = band.rows[0].cells
+    for c in (b0, b1, b2, b3):
+        shade(c, PINK_BAND); valign(c)
+    put(b0, UR["message"], 13, True, BLUE_PILL, "#14304A", urdu=True, line=26)
+    put(b1, avg, 22, True, band_fill(punjab_avg), band_text(punjab_avg))
+    lp = put(b2, "", 12, align=CENTER)
+    run(lp, "AQI ", 12, True); run(lp, "اوسط", 13, True, urdu=True)
+    gp = b3.paragraphs[0]; gp.alignment = CENTER
+    if "gauge" in pics:
+        picture(gp, pics["gauge"], width_mm=36)
+    gap(5)
+
+    def rank_table(container, ds, row_mm):
+        t = container.add_table(rows=1, cols=4); t.alignment = WD_TABLE_ALIGNMENT.CENTER
+        borders(t)
+        for c, h in zip(t.rows[0].cells, [UR["causes"], "AQI", UR["district"], UR["rank"]]):
+            put(c, h, 10, True, "#FFFFFF", "#000000", urdu=(h != "AQI"), line=18)
+        row_h(t.rows[0], 8)
+        for d in ds:
+            r = t.add_row(); row_h(r, row_mm)
+            has = d.value is not None
+            cs = r.cells
+            put(cs[0], d.dominant if has else "", 8.5)
+            put(cs[1], d.value if has else "", 11, True, band_fill(d.value) if has else NO_DATA_FILL,
+                band_text(d.value) if has else "#000000")
+            put(cs[2], DISTRICT_URDU.get(d.name, d.name), 11, False, urdu=True, line=17)
+            put(cs[3], f"{d.rank}.", 9.5)
+        widths(t, [40, 16, 31, 11])
+        return t
+
+    right, left = districts[:RIGHT_COLUMN_ROWS], districts[RIGHT_COLUMN_ROWS:]
+    main_t = doc.add_table(rows=1, cols=2); main_t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    widths(main_t, [99, 99])
+    lc, rc = main_t.rows[0].cells
+    if bi is not None:
+        lo, hi = BANDS[bi][0], BANDS[bi][1]
+        mt = lc.add_table(rows=1, cols=1); mt.alignment = WD_TABLE_ALIGNMENT.CENTER
+        borders(mt, "#B0B0B0", 6)
+        widths(mt, [95])
+        mcell = mt.rows[0].cells[0]
+        tp = put(mcell, "", 11, align=RIGHT, urdu=True, line=24)
+        if "face" in pics:
+            picture(tp, pics["face"], height_mm=8); run(tp, " ", 8)
+        run(tp, adv_name, 13, True, "#B7950B", urdu=True)
+        run(tp, " : ", 11, False, "#000000", urdu=True)
+        run(tp, f"({lo}—{hi}) (AQI)", 10, False, "#000000")
+        for heading_txt, items in adv_secs:
+            put(mcell, heading_txt, 12, True, None, "#000000", align=RIGHT, urdu=True, para=mcell.add_paragraph(), line=22)
+            for key, text in items:
+                ip = put(mcell, "", 9.5, align=RIGHT, urdu=True, para=mcell.add_paragraph(), line=17)
+                if f"ic_{key}" in pics:
+                    picture(ip, pics[f"ic_{key}"], height_mm=4.2); run(ip, " ", 6, urdu=True)
+                run(ip, text, 9.5, False, "#000000", urdu=True)
+        lc.add_paragraph().paragraph_format.line_spacing = Pt(5)
+        drop_lead(lc)
+    rank_table(lc, left, 7.2)
+    rank_table(rc, right, 7.9)
+    drop_lead(rc)
+
+    gap(4)
+    leg = doc.add_table(rows=2, cols=len(BANDS)); leg.alignment = WD_TABLE_ALIGNMENT.CENTER
+    widths(leg, [27.5] * len(BANDS))
+    for i, bnd in enumerate(BANDS):
+        put(leg.rows[0].cells[i], f"{BAND_LABELS[i]}\n({bnd[2]})", 6.5, True)
+        put(leg.rows[1].cells[i], "", 8, False, bnd[4]); row_h(leg.rows[1], 5)
+    footer()
+
+    # ================================================================ pages 2 and 3 : shared header
+    def page_header(parts, border_fill, border_text, size):
+        t = doc.add_table(rows=1, cols=3); t.alignment = WD_TABLE_ALIGNMENT.CENTER
+        row_h(t.rows[0], 26)
+        a, b, c = t.rows[0].cells
+        pa = a.paragraphs[0]; pa.alignment = LEFT
+        if LOGO_PUNJAB.exists():
+            picture(pa, LOGO_PUNJAB, height_mm=24)
+        bt = b.add_table(rows=1, cols=1); bt.alignment = CENTER
+        borders(bt, "#111111", 12)
+        bc = bt.rows[0].cells[0]
+        bp = put(bc, "", size, True, border_fill, border_text, serif=True)
+        for text, sz in parts:
+            run(bp, text, sz, True, border_text, serif=True)
+        up = b.add_paragraph(); up.alignment = CENTER
+        up.paragraph_format.space_before = Pt(3)
+        run(up, f"Updated Time: {report_date:%d.%m.%Y} ({REPORT_TIME}) 24 Hourly Report", 12, True, serif=True)
+        drop_lead(b)
+        pc = c.paragraphs[0]; pc.alignment = RIGHT
+        if LOGO_EPA.exists():
+            picture(pc, LOGO_EPA, height_mm=24)
+        return t, bt
+
+    if punjab_map_png and Path(punjab_map_png).exists():
+        new_page(False)
+        t, bt = page_header([("Average AQI of Punjab ", 17), (f"({n_d:02d} Districts) ", 9), (f"({avg})", 17)],
+                            band_fill(punjab_avg), band_text(punjab_avg), 17)
+        widths(t, [38, 118, 38]); widths(bt, [114])
+        par = doc.add_paragraph(); par.alignment = CENTER
+        picture(par, punjab_map_png, height_mm=208)
+        footer()
+
+    if focus_d is not None:
+        new_page(False, landscape=True)
+        n_ok = sum(1 for s in city if s.sufficient)
+        fv = "" if focus_d.value is None else focus_d.value
+        t, bt = page_header([(f"Average AQI of {focus} ", 17), (f"({n_ok:02d} AQMS) ", 9), (f"({fv})", 17)],
+                            band_fill(focus_d.value), band_text(focus_d.value), 17)
+        widths(t, [52, 177, 52]); widths(bt, [173])
+        body = doc.add_table(rows=1, cols=2); body.alignment = WD_TABLE_ALIGNMENT.CENTER
+        widths(body, [196, 85])
+        mc, sc = body.rows[0].cells
+        if map_png and Path(map_png).exists():
+            picture(mc.paragraphs[0], map_png, width_mm=196)
+        st = sc.add_table(rows=1, cols=4); borders(st, "#555555", 4)
+        for c, h in zip(st.rows[0].cells, ["Rank", "Location", "AQI", "Dominant"]):
+            put(c, h, 7.5, True, PINK_HEAD, serif=True)
+        row_h(st.rows[0], 8)
+        table_rows = len(city) + (len(tb) + 1 if tb else 0)
+        station_row_height = (LAHORE_MAP_SIZE_MM[1] - 8) / max(table_rows, 1)
+
+        def add_rows(sts):
+            for i, x in enumerate(sts, 1):
+                r = st.add_row(); row_h(r, station_row_height)
+                put(r.cells[0], f"{i:02d}", 8, False, serif=True)
+                put(r.cells[1], x.label, 8, False, serif=True)
+                put(r.cells[2], "" if x.value is None else x.value, 9, True, band_fill(x.value), band_text(x.value), serif=True)
+                put(r.cells[3], x.dominant if x.value is not None else "", 7, False, serif=True)
+
+        add_rows(city)
+        if tb:
+            r = st.add_row(); row_h(r, station_row_height)
+            m = r.cells[0].merge(r.cells[3])
+            mp = put(m, "", 9, align=LEFT, fill=PINK_HEAD)
+            run(mp, "● ", 9, True, "#E03C31"); run(mp, "Transboundary AQMS", 9, True, serif=True)
+            add_rows(tb)
+        widths(st, [12, 22, 12, 39])
+        drop_lead(sc)
+        footer()
+
+    doc.save(str(path))
+    try:
+        embed_fonts(path, {"Noto Sans": ("NotoSans-400.ttf", "NotoSans-700.ttf"),
+                           "Noto Serif": ("NotoSerif-400.ttf", "NotoSerif-700.ttf"),
+                           "Noto Nastaliq Urdu": ("NotoNastaliqUrdu-400.ttf", "NotoNastaliqUrdu-700.ttf")})
+    except Exception as exc:
+        print(f"  ! fonts were not embedded in the Word file ({exc})")
 
 
 # =============================================================================
@@ -1877,13 +2503,9 @@ def main(argv=None):
                     help="your own street map: GeoTIFF, or PNG/JPG with a world file (.pgw/.jgw) — e.g. exported from QGIS")
     ap.add_argument("--refresh-basemap", action="store_true", help="download a fresh street map instead of the saved copy")
     ap.add_argument("--test-basemap", action="store_true", help="test which street-map providers work on this network, then exit")
-    ap.add_argument("--min-hours", type=int, default=MIN_VALID_HOURS,
-                    help=f"minimum valid hours (cannot be less than {MIN_VALID_HOURS})")
-    ap.add_argument("--keep-zero-aqi", action="store_true", help="count AQI=0 hours (dashboard behaviour)")
-    ap.add_argument("--no-pdf", action="store_true", help="write HTML only")
+    ap.add_argument("--no-pdf", action="store_true",
+                    help="do not keep a PDF file; a temporary PDF is still used for the matching Word report")
     a = ap.parse_args(argv)
-    if a.min_hours < MIN_VALID_HOURS:
-        ap.error(f"--min-hours cannot be less than {MIN_VALID_HOURS}")
 
     log = print
     if a.test_basemap:
@@ -1891,32 +2513,30 @@ def main(argv=None):
         return
     a.out.mkdir(parents=True, exist_ok=True)
     data_date = dt.date.fromisoformat(a.data_date) if a.data_date else None
-    keep_zero = a.keep_zero_aqi or not DROP_ZERO_AQI
-
     if a.csv.is_dir():   # a folder was given: use the newest dashboard export in it
         cands = sorted(a.csv.glob("graphs_periodic*.csv")) or sorted(a.csv.glob("*.csv"))
         if not cands:
             sys.exit(f"No CSV files in {a.csv}")
         a.csv = max(cands, key=lambda p: p.stat().st_mtime)
     log(f"Reading {a.csv.name} ...")
-    stations, data_date = read_dashboard_csv(a.csv, data_date, keep_zero)
+    stations, data_date = read_dashboard_csv(a.csv, data_date)
     report_date = dt.date.fromisoformat(a.report_date) if a.report_date else data_date + dt.timedelta(days=1)
     for s in stations:
-        compute_station(s, a.min_hours)
+        compute_station(s)
     report_stations = [s for s in stations if s.sufficient]
-    excluded_spikes = sum(int(s.hours.spike.sum()) for s in stations)
+    flagged_spikes = sum(int(s.hours.spike.sum()) for s in stations)
     districts = compute_districts(report_stations)
     vals = [d.mean for d in districts if d.mean is not None]
     punjab_avg = float(np.mean(vals)) if vals else None
-    qa = qa_flags(stations, a.min_hours)
-    log(f"  {len(report_stations)}/{len(stations)} stations included, {excluded_spikes} isolated peak hour(s) excluded, "
+    qa = qa_flags(stations)
+    log(f"  {len(report_stations)}/{len(stations)} stations included, {flagged_spikes} isolated peak hour(s) flagged (included), "
         f"{len(districts)} districts, data date {data_date:%d.%m.%Y}, "
         f"Punjab average AQI {'' if punjab_avg is None else round_half_up(punjab_avg)}")
 
     extra, match_table = [], None
     if a.shp:
         log(f"Reading AQMS locations {a.shp.name} ...")
-        extra, match_table = load_station_locations(a.shp, report_stations, a.shp_name_field, {}, log)
+        extra, match_table = load_station_locations(a.shp, report_stations, a.shp_name_field, SHP_ALIASES, log)
         miss = [s.name for s in report_stations if s.x is None]
         log(f"  matched {len(report_stations) - len(miss)}/{len(report_stations)} reported stations to the shapefile")
         if miss:
@@ -1925,46 +2545,50 @@ def main(argv=None):
 
     tag = f"{report_date:%d.%m.%Y}"
     focus = canonical_district(a.focus) or a.focus
-    city = sorted([s for s in report_stations if s.district == focus and s.role != "transboundary"],
+    city = sorted([s for s in report_stations if in_focus(s, focus) and s.role != "transboundary"],
                   key=lambda s: (s.value is None, -(s.mean or 0)))
-    tb = sorted([s for s in report_stations if s.district == focus and s.role == "transboundary"],
+    tb = sorted([s for s in report_stations if in_focus(s, focus) and s.role == "transboundary"],
                 key=lambda s: (s.value is None, -(s.mean or 0)))
     focus_d = next((d for d in districts if d.name == focus), None)
-    reported = {s.label for s in report_stations if s.district == focus}
-    for label, dist, role in dict.fromkeys(STATION_REGISTRY.values()):
-        if dist != focus or label in reported:
-            continue
-        found = [x for x in stations if x.label == label]
-        if found:
-            x = found[0]
-            log(f"  ! {label} ({role}) is NOT in the report: only {x.n_valid} valid hour(s) after filtering "
-                f"(minimum {a.min_hours}); CSV column '{x.name}'")
-        else:
-            log(f"  ! {label} ({role}) is NOT in the report: no matching '<station> • AQI' column in the CSV")
-    unknown = [x.name for x in stations if x.district is None]
-    if unknown:
-        log(f"  ! stations with no district (not shown anywhere): {', '.join(unknown)}  -> add to STATION_REGISTRY")
-
+    districts_shp = a.districts_shp or find_districts_shp(SCRIPT_DIR / "shp")
     map_png = None
     if a.shp:
         log("Drawing AQMS map ...")
-        map_png = render_map(report_stations, focus, [], a.districts_shp,
+        map_png = render_map(report_stations, focus, [], districts_shp,
                              a.out / f"AQMS_Map_{focus.replace(' ', '_')}_{tag}.png", data_date, a.basemap, log,
                              basemap_file=a.basemap_file, refresh_basemap=a.refresh_basemap)
 
     log("Drawing Punjab district AQI map ...")
-    punjab_map_png = render_punjab_map(districts, a.districts_shp or find_districts_shp(SCRIPT_DIR / "shp"),
+    punjab_map_png = render_punjab_map(districts, districts_shp,
                                        a.out / f"Punjab_District_AQI_Map_{tag}.png", data_date, log)
 
     html_path = a.out / f"DAILY_AQI_REPORT_{tag}.html"
     html_path.write_text(build_html(districts, punjab_avg, focus_d, city, tb, map_png, data_date, report_date, focus,
                                     punjab_map_png), encoding="utf-8")
     pdf_path = a.out / f"DAILY_AQI_REPORT_{tag}.pdf"
-    if not a.no_pdf:
+    temporary_pdf_dir = None
+    docx_source_pdf = pdf_path
+    if a.no_pdf:
+        import tempfile
+        temporary_pdf_dir = tempfile.TemporaryDirectory(prefix="aqi_word_pdf_")
+        docx_source_pdf = Path(temporary_pdf_dir.name) / pdf_path.name
+        log("Rendering temporary PDF for the matching Word report ...")
+    else:
         log("Rendering PDF ...")
-        html_to_pdf(html_path, pdf_path, log)
+    pdf_ready = html_to_pdf(html_path, docx_source_pdf, log)
     xlsx = a.out / f"AQI_Summary_{tag}.xlsx"
-    write_excel(xlsx, districts, report_stations, qa, match_table, punjab_avg)
+    write_excel(xlsx, districts, stations, qa, match_table, punjab_avg)
+    docx_path = a.out / f"DAILY_AQI_REPORT_{tag}.docx"
+    try:
+        if pdf_ready:
+            write_docx_from_pdf(docx_source_pdf, docx_path)
+        else:
+            log("  ! Word report skipped because the matching PDF could not be rendered")
+    except ImportError as exc:
+        log(f"  ! Word report skipped: install python-docx and PyMuPDF ({exc})")
+    finally:
+        if temporary_pdf_dir is not None:
+            temporary_pdf_dir.cleanup()
 
     log("\nDistrict ranking:")
     for d in districts:
