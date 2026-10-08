@@ -13,7 +13,7 @@ What it produces (all in the output folder):
   2. AQMS_Map_<District>_<dd.mm.yyyy>.png  High-resolution zoomed AQMS map (300 dpi)
   3. AQI_Summary_<dd.mm.yyyy>.xlsx        Districts, Stations, Hourly data, QA flags
   4. DAILY_AQI_REPORT_<dd.mm.yyyy>.html   The same report as a web page
-  5. DAILY_AQI_REPORT_<dd.mm.yyyy>.docx   Word copy rendered from the PDF pages
+  5. DAILY_AQI_REPORT_<dd.mm.yyyy>.docx   Editable Word report
 
 Inputs:
   --csv   Station-level dashboard export ("graphs_periodic_*.csv"), with columns
@@ -2006,41 +2006,6 @@ def html_to_pdf(html_path: Path, pdf_path: Path, log):
     return True
 
 
-def write_docx_from_pdf(pdf_path: Path, docx_path: Path, dpi: int = 300):
-    """Embed each rendered PDF page as a full-page image so Word matches the PDF layout."""
-    import tempfile
-    import pymupdf
-    from docx import Document
-    from docx.enum.section import WD_ORIENT, WD_SECTION
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.shared import Mm, Pt
-
-    doc = Document()
-    with tempfile.TemporaryDirectory(prefix="aqi_pdf_pages_") as temp_dir:
-        with pymupdf.open(pdf_path) as pdf:
-            for index, page in enumerate(pdf):
-                width_mm = page.rect.width * 25.4 / 72
-                height_mm = page.rect.height * 25.4 / 72
-                section = doc.sections[0] if index == 0 else doc.add_section(WD_SECTION.NEW_PAGE)
-                section.orientation = WD_ORIENT.LANDSCAPE if width_mm > height_mm else WD_ORIENT.PORTRAIT
-                section.page_width = Mm(width_mm)
-                section.page_height = Mm(height_mm)
-                section.left_margin = section.right_margin = Mm(4)
-                section.top_margin = section.bottom_margin = Mm(4)
-                section.header_distance = section.footer_distance = Mm(0)
-
-                page_image = Path(temp_dir) / f"page_{index + 1}.png"
-                page.get_pixmap(matrix=pymupdf.Matrix(dpi / 72, dpi / 72), alpha=False).save(page_image)
-                paragraph = doc.add_paragraph()
-                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                paragraph.paragraph_format.space_before = Pt(0)
-                paragraph.paragraph_format.space_after = Pt(0)
-                paragraph.add_run().add_picture(str(page_image), width=Mm(width_mm - 10),
-                                                height=Mm(height_mm - 10))
-
-    doc.save(str(docx_path))
-
-
 # =============================================================================
 # 6. EXCEL SUMMARY
 # =============================================================================
@@ -2176,7 +2141,7 @@ def embed_fonts(docx_path, families):
 
 
 def write_docx(path, districts, punjab_avg, focus_d, city, tb, map_png, punjab_map_png, data_date, report_date, focus):
-    """Legacy editable layout builder; final report output uses write_docx_from_pdf for visual parity."""
+    """Write an editable Word report with native text and tables and embedded map artwork."""
     import tempfile
     from docx import Document
     from docx.enum.section import WD_ORIENT, WD_SECTION
@@ -2505,8 +2470,7 @@ def main(argv=None):
                     help="your own street map: GeoTIFF, or PNG/JPG with a world file (.pgw/.jgw) — e.g. exported from QGIS")
     ap.add_argument("--refresh-basemap", action="store_true", help="download a fresh street map instead of the saved copy")
     ap.add_argument("--test-basemap", action="store_true", help="test which street-map providers work on this network, then exit")
-    ap.add_argument("--no-pdf", action="store_true",
-                    help="do not keep a PDF file; a temporary PDF is still used for the matching Word report")
+    ap.add_argument("--no-pdf", action="store_true", help="do not create a PDF report")
     a = ap.parse_args(argv)
 
     log = print
@@ -2568,29 +2532,19 @@ def main(argv=None):
     html_path.write_text(build_html(districts, punjab_avg, focus_d, city, tb, map_png, data_date, report_date, focus,
                                     punjab_map_png), encoding="utf-8")
     pdf_path = a.out / f"DAILY_AQI_REPORT_{tag}.pdf"
-    temporary_pdf_dir = None
-    docx_source_pdf = pdf_path
     if a.no_pdf:
-        import tempfile
-        temporary_pdf_dir = tempfile.TemporaryDirectory(prefix="aqi_word_pdf_")
-        docx_source_pdf = Path(temporary_pdf_dir.name) / pdf_path.name
-        log("Rendering temporary PDF for the matching Word report ...")
+        log("Skipping PDF output (--no-pdf)")
     else:
         log("Rendering PDF ...")
-    pdf_ready = html_to_pdf(html_path, docx_source_pdf, log)
+        html_to_pdf(html_path, pdf_path, log)
     xlsx = a.out / f"AQI_Summary_{tag}.xlsx"
     write_excel(xlsx, districts, stations, qa, match_table, punjab_avg)
     docx_path = a.out / f"DAILY_AQI_REPORT_{tag}.docx"
     try:
-        if pdf_ready:
-            write_docx_from_pdf(docx_source_pdf, docx_path)
-        else:
-            log("  ! Word report skipped because the matching PDF could not be rendered")
+        write_docx(docx_path, districts, punjab_avg, focus_d, city, tb, map_png, punjab_map_png,
+                   data_date, report_date, focus)
     except ImportError as exc:
-        log(f"  ! Word report skipped: install python-docx and PyMuPDF ({exc})")
-    finally:
-        if temporary_pdf_dir is not None:
-            temporary_pdf_dir.cleanup()
+        log(f"  ! Word report skipped: install python-docx ({exc})")
 
     log("\nDistrict ranking:")
     for d in districts:

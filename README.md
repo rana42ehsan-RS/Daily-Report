@@ -9,7 +9,7 @@ pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-Playwright's Chromium turns the HTML page into the PDF. It lays out Urdu Nastaliq correctly, which matplotlib and ReportLab cannot do. The Word report is made from 300-dpi images of those PDF pages, so its printed appearance matches the PDF.
+Playwright's Chromium turns the HTML page into the PDF. It lays out Urdu Nastaliq correctly, which matplotlib and ReportLab cannot do. The Word report is built separately with editable text and tables; maps, logos, and decorative icons remain embedded images.
 
 ## 2. Folder layout
 
@@ -66,7 +66,7 @@ Useful options:
 - `AQMS_Map_Lahore_dd.mm.yyyy.png`: the zoomed map at 300 dpi, for WhatsApp or slides
 - `AQI_Summary_dd.mm.yyyy.xlsx`: sheets Districts, Stations, QA_Flags, Shapefile_Match, Hourly
 - `DAILY_AQI_REPORT_dd.mm.yyyy.html`: the same report as a web page
-- `DAILY_AQI_REPORT_dd.mm.yyyy.docx`: Word copy with one full-page image per PDF page for consistent printing; its page content is not editable
+- `DAILY_AQI_REPORT_dd.mm.yyyy.docx`: editable Word report with native text and tables; maps, logos, and decorative icons are embedded images
 
 ## 5. How the figures are calculated
 
