@@ -2035,7 +2035,6 @@ def write_docx_from_pdf(pdf_path: Path, docx_path: Path, dpi: int = 300):
                 paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 paragraph.paragraph_format.space_before = Pt(0)
                 paragraph.paragraph_format.space_after = Pt(0)
-                paragraph.paragraph_format.line_spacing = Pt(1)
                 paragraph.add_run().add_picture(str(page_image), width=Mm(width_mm - 10),
                                                 height=Mm(height_mm - 10))
 
